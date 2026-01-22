@@ -1,0 +1,73 @@
+{
+  "name": "transcripts",
+  "type": "base",
+  "schema": [
+    {
+      "name": "video_id",
+      "type": "text",
+      "required": true,
+      "options": {
+        "min": null,
+        "max": null,
+        "pattern": ""
+      }
+    },
+    {
+      "name": "url",
+      "type": "url",
+      "required": true,
+      "options": {
+        "exceptDomains": null,
+        "onlyDomains": null
+      }
+    },
+    {
+      "name": "full_transcript",
+      "type": "text",
+      "required": true,
+      "options": {
+        "min": null,
+        "max": null,
+        "pattern": ""
+      }
+    },
+    {
+      "name": "simple_transcript",
+      "type": "text",
+      "required": true,
+      "options": {
+        "min": null,
+        "max": null,
+        "pattern": ""
+      }
+    },
+    {
+      "name": "language",
+      "type": "text",
+      "required": true,
+      "options": {
+        "min": null,
+        "max": 10,
+        "pattern": ""
+      }
+    },
+    {
+      "name": "summary",
+      "type": "text",
+      "required": false,
+      "options": {
+        "min": null,
+        "max": null,
+        "pattern": ""
+      }
+    }
+  ],
+  "indexes": [
+    "CREATE INDEX idx_video_id ON transcripts (video_id)"
+  ],
+  "listRule": "",
+  "viewRule": "",
+  "createRule": "",
+  "updateRule": "",
+  "deleteRule": ""
+}
