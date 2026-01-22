@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Transkript Alıcı</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: #1a202c;
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #fc8181;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #68d391;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+
+        .result-box {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .result-box h3 {
+            color: #2d3748;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .result-text {
+            color: #4a5568;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-small:hover {
+            background: #5568d3;
+        }
+
+        .btn-small.secondary {
+            background: #48bb78;
+        }
+
+        .btn-small.secondary:hover {
+            background: #38a169;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .history-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+
+        .history-date {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .info-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .badge-language {
+            background: #e6fffa;
+            color: #234e52;
+        }
+
+        .badge-summary {
+            background: #fef5e7;
+            color: #7d6608;
+        }
+
+        .stat-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🎥 YouTube Transkript Alıcı</h1>
+            <p class="subtitle">YouTube videolarının tam metnini alın - Zaman damgaları ile birlikte</p>
+
+            <div id="alert" class="alert"></div>
+            
+            <div class="form-group">
+                <label for="url">YouTube Video URL'si</label>
+                <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="useCache" checked>
+                <label for="useCache" style="margin: 0">Önbelleği kullan (varsa)</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="includeTimestamps" checked>
+                <label for="includeTimestamps" style="margin: 0">Zaman damgalarını dahil et ([00:00] formatında)</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="generateSummary">
+                <label for="generateSummary" style="margin: 0">Gemini ile özet oluştur (opsiyonel)</label>
+            </div>
+
+            <button class="btn" onclick="getTranscript()">Tam Transkripti Al</button>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 12px; color: #4a5568;">İşleniyor...</p>
+            </div>
+
+            <div id="transcriptBox" class="result-box">
+                <h3>
+                    <span>📝 Transkript (Tam Metin)</span>
+                    <div class="btn-group">
+                        <button class="btn-small" onclick="copyToClipboard('transcript')">📋 Kopyala</button>
+                        <button class="btn-small secondary" onclick="downloadTranscript('txt')">📄 TXT İndir</button>
+                        <button class="btn-small secondary" onclick="downloadTranscript('md')">📑 Markdown İndir</button>
+                    </div>
+                </h3>
+                <div class="stat-row">
+                    <span id="transcriptStats"></span>
+                </div>
+                <div id="transcript" class="result-text"></div>
+            </div>
+
+            <div id="summaryBox" class="result-box">
+                <h3>
+                    <span>🤖 AI Özeti</span>
+                    <button class="btn-small" onclick="copyToClipboard('summary')">📋 Kopyala</button>
+                </h3>
+                <div id="summary" class="result-text" style="font-family: inherit;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">📚 Geçmiş Transkriptler</h2>
+            <div id="history"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentRecordId = null;
+        let currentTranscript = '';
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        async function getTranscript() {
+            const url = document.getElementById('url').value.trim();
+            const useCache = document.getElementById('useCache').checked;
+            const generateSummary = document.getElementById('generateSummary').checked;
+            const includeTimestamps = document.getElementById('includeTimestamps').checked;
+
+            if (!url) {
+                showAlert('Lütfen bir YouTube URL\'si girin', 'error');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('transcriptBox').style.display = 'none';
+            document.getElementById('summaryBox').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/transcript', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        use_cache: useCache,
+                        generate_summary: generateSummary,
+                        include_timestamps: includeTimestamps
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showAlert(data.error, 'error');
+                    return;
+                }
+
+                currentTranscript = data.transcript;
+                currentRecordId = data.record_id;
+
+                document.getElementById('transcript').textContent = data.transcript;
+                document.getElementById('transcriptBox').style.display = 'block';
+
+                // İstatistikler
+                const wordCount = data.transcript.split(/\s+/).length;
+                const lineCount = data.transcript.split('\n').length;
+                document.getElementById('transcriptStats').innerHTML = 
+                    `<strong>Dil:</strong> ${data.language} | <strong>Satır:</strong> ${lineCount} | <strong>Kelime:</strong> ${wordCount}`;
+
+                if (data.summary) {
+                    document.getElementById('summary').textContent = data.summary;
+                    document.getElementById('summaryBox').style.display = 'block';
+                }
+
+                const cacheMsg = data.from_cache ? ' (Önbellekten alındı ⚡)' : ' (Yeni alındı ✨)';
+                showAlert('Tam transkript başarıyla alındı!' + cacheMsg, 'success');
+                
+                loadHistory();
+
+            } catch (error) {
+                showAlert('Bir hata oluştu: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text);
+            showAlert('Panoya kopyalandı! ✓', 'success');
+        }
+
+        async function downloadTranscript(format) {
+            if (!currentRecordId) {
+                showAlert('İndirilecek kayıt bulunamadı', 'error');
+                return;
+            }
+            window.location.href = `/api/export/${currentRecordId}?format=${format}`;
+            showAlert(`${format.toUpperCase()} dosyası indiriliyor...`, 'info');
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/history');
+                const data = await response.json();
+
+                const historyDiv = document.getElementById('history');
+                historyDiv.innerHTML = '';
+
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'history-item';
+                        div.innerHTML = `
+                            <div><strong>Video ID:</strong> ${item.video_id}</div>
+                            <div class="history-date">${new Date(item.created).toLocaleString('tr-TR')}</div>
+                            <div>
+                                <span class="info-badge badge-language">🌐 ${item.language}</span>
+                                ${item.has_summary ? '<span class="info-badge badge-summary">🤖 Özet mevcut</span>' : ''}
+                            </div>
+                        `;
+                        div.onclick = () => {
+                            document.getElementById('url').value = item.url;
+                        };
+                        historyDiv.appendChild(div);
+                    });
+                } else {
+                    historyDiv.innerHTML = '<p style="color: #718096;">Henüz kayıt yok. İlk transkripti alın! 🎬</p>';
+                }
+            } catch (error) {
+                console.error('Geçmiş yüklenemedi:', error);
+            }
+        }
+
+        // Enter tuşu ile form gönderme
+        document.getElementById('url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getTranscript();
+            }
+        });
+
+        // Sayfa yüklendiğinde geçmişi yükle
+        window.onload = loadHistory;
+    </script>
+</body>
+</html>
