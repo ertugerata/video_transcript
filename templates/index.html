@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Transkript Alıcı</title>
+    <title>YouTube & Ses Transkript Alıcı</title>
     <style>
         * {
             margin: 0;
@@ -42,6 +42,31 @@
             margin-bottom: 32px;
         }
 
+        .tabs {
+            display: flex;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            font-weight: 600;
+            color: #718096;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab:hover:not(.active) {
+            color: #4a5568;
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -66,6 +91,21 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px dashed #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: all 0.3s;
+        }
+
+        input[type="file"]:hover {
+            border-color: #667eea;
+            background: #f1f5f9;
         }
 
         .checkbox-group {
@@ -257,19 +297,35 @@
 <body>
     <div class="container">
         <div class="card">
-            <h1>🎥 YouTube Transkript Alıcı</h1>
-            <p class="subtitle">YouTube videolarının tam metnini alın - Zaman damgaları ile birlikte</p>
+            <h1>🎥 YouTube & Ses Transkript</h1>
+            <p class="subtitle">YouTube videoları veya ses dosyaları için AI destekli transkript ve özet</p>
 
             <div id="alert" class="alert"></div>
+
+            <div class="tabs">
+                <div class="tab active" data-tab="url" onclick="switchTab('url')">YouTube URL</div>
+                <div class="tab" data-tab="file" onclick="switchTab('file')">Ses Dosyası Yükle</div>
+            </div>
             
-            <div class="form-group">
-                <label for="url">YouTube Video URL'si</label>
-                <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=...">
+            <div id="urlSection">
+                <div class="form-group">
+                    <label for="url">YouTube Video URL'si</label>
+                    <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+                <div class="checkbox-group" id="useCacheContainer">
+                    <input type="checkbox" id="useCache" checked>
+                    <label for="useCache" style="margin: 0">Önbelleği kullan (varsa)</label>
+                </div>
             </div>
 
-            <div class="checkbox-group">
-                <input type="checkbox" id="useCache" checked>
-                <label for="useCache" style="margin: 0">Önbelleği kullan (varsa)</label>
+            <div id="fileSection" style="display: none;">
+                <div class="form-group">
+                    <label for="audioFile">Ses veya Video Dosyası Seçin</label>
+                    <input type="file" id="audioFile" accept="audio/*,video/*">
+                    <p style="font-size: 13px; color: #718096; margin-top: 8px;">
+                        Desteklenen formatlar: MP3, WAV, M4A, MP4, MPEG, OGG. Maksimum 500MB.
+                    </p>
+                </div>
             </div>
 
             <div class="checkbox-group">
@@ -282,11 +338,11 @@
                 <label for="generateSummary" style="margin: 0">Gemini ile özet oluştur (opsiyonel)</label>
             </div>
 
-            <button class="btn" onclick="getTranscript()">Tam Transkripti Al</button>
+            <button class="btn" onclick="getTranscript()">Transkripti Oluştur</button>
 
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p style="margin-top: 12px; color: #4a5568;">İşleniyor...</p>
+                <p style="margin-top: 12px; color: #4a5568;">İşleniyor... (Ses dosyaları için bu işlem birkaç dakika sürebilir)</p>
             </div>
 
             <div id="transcriptBox" class="result-box">
@@ -322,6 +378,24 @@
     <script>
         let currentRecordId = null;
         let currentTranscript = '';
+        let currentMode = 'url';
+
+        function switchTab(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${mode}"]`).classList.add('active');
+
+            if (mode === 'url') {
+                document.getElementById('urlSection').style.display = 'block';
+                document.getElementById('fileSection').style.display = 'none';
+                document.getElementById('useCacheContainer').style.display = 'flex';
+            } else {
+                document.getElementById('urlSection').style.display = 'none';
+                document.getElementById('fileSection').style.display = 'block';
+                // Cache is not applicable for new file uploads in this simple implementation
+                document.getElementById('useCacheContainer').style.display = 'none';
+            }
+        }
 
         function showAlert(message, type) {
             const alert = document.getElementById('alert');
@@ -334,14 +408,44 @@
         }
 
         async function getTranscript() {
-            const url = document.getElementById('url').value.trim();
-            const useCache = document.getElementById('useCache').checked;
             const generateSummary = document.getElementById('generateSummary').checked;
             const includeTimestamps = document.getElementById('includeTimestamps').checked;
 
-            if (!url) {
-                showAlert('Lütfen bir YouTube URL\'si girin', 'error');
-                return;
+            let body;
+            let headers = {};
+
+            if (currentMode === 'url') {
+                const url = document.getElementById('url').value.trim();
+                const useCache = document.getElementById('useCache').checked;
+
+                if (!url) {
+                    showAlert('Lütfen bir YouTube URL\'si girin', 'error');
+                    return;
+                }
+
+                body = JSON.stringify({
+                    url: url,
+                    use_cache: useCache,
+                    generate_summary: generateSummary,
+                    include_timestamps: includeTimestamps
+                });
+                headers['Content-Type'] = 'application/json';
+
+            } else {
+                // File Mode
+                const fileInput = document.getElementById('audioFile');
+                if (fileInput.files.length === 0) {
+                    showAlert('Lütfen bir dosya seçin', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('audio_file', fileInput.files[0]);
+                formData.append('generate_summary', generateSummary);
+                formData.append('include_timestamps', includeTimestamps);
+
+                body = formData;
+                // Content-Type header is set automatically by fetch for FormData
             }
 
             document.getElementById('loading').style.display = 'block';
@@ -351,15 +455,8 @@
             try {
                 const response = await fetch('/api/transcript', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        url: url,
-                        use_cache: useCache,
-                        generate_summary: generateSummary,
-                        include_timestamps: includeTimestamps
-                    })
+                    headers: headers,
+                    body: body
                 });
 
                 const data = await response.json();
@@ -387,7 +484,7 @@
                 }
 
                 const cacheMsg = data.from_cache ? ' (Önbellekten alındı ⚡)' : ' (Yeni alındı ✨)';
-                showAlert('Tam transkript başarıyla alındı!' + cacheMsg, 'success');
+                showAlert('Transkript başarıyla alındı!' + cacheMsg, 'success');
                 
                 loadHistory();
 
@@ -425,8 +522,11 @@
                     data.items.forEach(item => {
                         const div = document.createElement('div');
                         div.className = 'history-item';
+                        let title = item.url || `Ses Dosyası (ID: ${item.id})`;
+                        if (title.length > 50) title = title.substring(0, 47) + '...';
+
                         div.innerHTML = `
-                            <div><strong>Video ID:</strong> ${item.video_id}</div>
+                            <div><strong>${item.url ? 'Video' : 'Dosya'}:</strong> ${title}</div>
                             <div class="history-date">${new Date(item.created).toLocaleString('tr-TR')}</div>
                             <div>
                                 <span class="info-badge badge-language">🌐 ${item.language}</span>
@@ -434,7 +534,15 @@
                             </div>
                         `;
                         div.onclick = () => {
-                            document.getElementById('url').value = item.url;
+                            if (item.url) {
+                                switchTab('url');
+                                document.getElementById('url').value = item.url;
+                            } else {
+                                // Can't "reload" a file input, but we could maybe load the result?
+                                // For now, just show alert or do nothing special.
+                                switchTab('file');
+                                showAlert('Bu geçmiş kaydı bir dosya yüklemesidir. Tekrar yüklemek için dosya seçin.', 'info');
+                            }
                         };
                         historyDiv.appendChild(div);
                     });
