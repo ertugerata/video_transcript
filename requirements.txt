@@ -1,5 +1,5 @@
 Flask==3.0.0
-youtube-transcript-api==0.6.2
+youtube-transcript-api==1.2.3
 google-generativeai==0.3.2
 pocketbase>=0.15.0
 python-dotenv==1.0.0

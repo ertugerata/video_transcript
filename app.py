@@ -38,7 +38,7 @@ def get_video_info(video_id):
     """Video başlığını almaya çalışır (basit yöntem)"""
     try:
         # YouTube Transcript API'den dil bilgilerini alırken video başlığı da gelebilir
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = YouTubeTranscriptApi().list(video_id)
         return f"YouTube Video - {video_id}"
     except:
         return f"YouTube Video - {video_id}"
@@ -48,38 +48,38 @@ def get_transcript(video_id, language='tr'):
     try:
         print(f"Video ID için transkript alınıyor: {video_id}")
         
-        # Cookies dosyası varsa kullan
+        # Cookies dosyası varsa kullan (not: v1.2.3'te cookies parametresi farklı çalışıyor, bu örnekte kullanılmıyor)
         cookies_file = 'youtube_cookies.txt'
         cookies = cookies_file if os.path.exists(cookies_file) else None
         
         if cookies:
-            print(f"Cookies dosyası kullanılıyor: {cookies_file}")
+            print(f"Cookies dosyası bulundu ancak yeni API sürümünde kullanılmıyor: {cookies_file}")
+
+        # API instance oluştur
+        ytt = YouTubeTranscriptApi()
         
         # Basit yöntem - direkt transkript al
         try:
             print(f"Türkçe transkript deneniyor...")
-            transcript_data = YouTubeTranscriptApi.get_transcript(
+            transcript_data = ytt.fetch(
                 video_id, 
-                languages=['tr'],
-                cookies=cookies
+                languages=['tr']
             )
             detected_language = 'tr'
             print(f"Türkçe transkript bulundu!")
         except:
             try:
                 print(f"İngilizce transkript deneniyor...")
-                transcript_data = YouTubeTranscriptApi.get_transcript(
+                transcript_data = ytt.fetch(
                     video_id, 
-                    languages=['en'],
-                    cookies=cookies
+                    languages=['en']
                 )
                 detected_language = 'en'
                 print(f"İngilizce transkript bulundu!")
             except:
                 print(f"Otomatik transkript deneniyor...")
-                transcript_data = YouTubeTranscriptApi.get_transcript(
-                    video_id,
-                    cookies=cookies
+                transcript_data = ytt.fetch(
+                    video_id
                 )
                 detected_language = 'auto'
                 print(f"Otomatik transkript bulundu!")
@@ -89,12 +89,12 @@ def get_transcript(video_id, language='tr'):
         # Tam metin - zaman damgaları ile birlikte
         full_transcript = []
         for item in transcript_data:
-            timestamp = format_timestamp(item['start'])
-            text = item['text']
+            timestamp = format_timestamp(item.start)
+            text = item.text
             full_transcript.append(f"[{timestamp}] {text}")
         
         # Basit metin (zaman damgası olmadan)
-        simple_text = ' '.join([item['text'] for item in transcript_data])
+        simple_text = ' '.join([item.text for item in transcript_data])
         
         return {
             'full_text': '\n'.join(full_transcript),
