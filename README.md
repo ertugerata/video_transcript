@@ -13,8 +13,9 @@ Bu proje, YouTube videolarının transkriptlerini çeken, Google Gemini API kull
 ## Gereksinimler
 
 *   Python 3.8+
-*   PocketBase
+*   PocketBase (Otomatik kurulum scripti mevcuttur)
 *   Google Gemini API Anahtarı
+*   `wget` ve `unzip` (Linux/macOS otomatik kurulum scripti için)
 
 ## Kurulum
 
@@ -36,20 +37,29 @@ Bu proje, YouTube videolarının transkriptlerini çeken, Google Gemini API kull
     ```
 
 4.  **PocketBase Kurulumu:**
-    *   PocketBase'i indirin ve çalıştırın (`./pocketbase serve` veya `pocketbase.exe serve`). Varsayılan olarak `http://127.0.0.1:8090` adresinde çalışacaktır.
-    *   Admin paneline gidin (`http://127.0.0.1:8090/_/`).
-    *   `transcripts` adında bir koleksiyon ("Base" type) oluşturun ve aşağıdaki alanları ekleyin (veya `pocketbase_schema.json` dosyasını referans alın):
-        *   `video_id` (Text)
-        *   `url` (URL)
-        *   `full_transcript` (Text)
-        *   `simple_transcript` (Text)
-        *   `language` (Text)
-        *   `summary` (Text)
-    *   API Kurallarını (API Rules) uygulamanın erişebileceği şekilde ayarladığınızdan emin olun (Geliştirme için kuralları boş bırakarak herkese açık yapabilirsiniz).
+
+    Proje içerisinde gelen kurulum scriptini kullanarak PocketBase'i hızlıca kurabilir ve yapılandırabilirsiniz. Bu script PocketBase'i indirir, veritabanı şemasını oluşturur ve bir yönetici hesabı tanımlar.
+
+    ```bash
+    chmod +x setup_pocketbase.sh
+    ./setup_pocketbase.sh
+    ```
+
+    **Not:** Script varsayılan olarak şu yönetici hesabını oluşturur:
+    *   **Email:** `admin@local.host`
+    *   **Şifre:** `password123456`
+
+    Eğer kurulumu manuel yapmak isterseniz, PocketBase'i indirip `pb_migrations` klasöründeki migration dosyasını uygulayabilirsiniz.
+
+5.  **PocketBase'i Başlatın:**
+    ```bash
+    ./pocketbase serve
+    ```
+    PocketBase `http://127.0.0.1:8090` adresinde çalışacaktır. Admin paneline `http://127.0.0.1:8090/_/` adresinden erişebilirsiniz.
 
 ## Kullanım
 
-1.  **Uygulamayı başlatın:**
+1.  **Uygulamayı başlatın (Farklı bir terminalde):**
     ```bash
     python app.py
     ```
@@ -68,4 +78,6 @@ Bu proje, YouTube videolarının transkriptlerini çeken, Google Gemini API kull
 *   `app.py`: Ana Flask uygulaması ve backend mantığı.
 *   `templates/`: HTML arayüz dosyaları.
 *   `requirements.txt`: Gerekli Python kütüphaneleri.
-*   `pocketbase_schema.json`: Veritabanı şema örneği.
+*   `setup_pocketbase.sh`: PocketBase otomatik kurulum ve yapılandırma scripti.
+*   `pb_migrations/`: Veritabanı şema değişiklikleri (Migrations).
+*   `pocketbase_schema.json`: Veritabanı şema örneği (Referans için).
