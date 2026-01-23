@@ -46,17 +46,45 @@ def get_video_info(video_id):
 def get_transcript(video_id, language='tr'):
     """YouTube video transkriptini alır - TAM METİN"""
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        print(f"Video ID için transkript alınıyor: {video_id}")
         
+        # Cookies dosyası varsa kullan
+        cookies_file = 'youtube_cookies.txt'
+        cookies = cookies_file if os.path.exists(cookies_file) else None
+        
+        if cookies:
+            print(f"Cookies dosyası kullanılıyor: {cookies_file}")
+        
+        # Basit yöntem - direkt transkript al
         try:
-            transcript = transcript_list.find_transcript([language])
+            print(f"Türkçe transkript deneniyor...")
+            transcript_data = YouTubeTranscriptApi.get_transcript(
+                video_id, 
+                languages=['tr'],
+                cookies=cookies
+            )
+            detected_language = 'tr'
+            print(f"Türkçe transkript bulundu!")
         except:
             try:
-                transcript = transcript_list.find_transcript(['en'])
+                print(f"İngilizce transkript deneniyor...")
+                transcript_data = YouTubeTranscriptApi.get_transcript(
+                    video_id, 
+                    languages=['en'],
+                    cookies=cookies
+                )
+                detected_language = 'en'
+                print(f"İngilizce transkript bulundu!")
             except:
-                transcript = transcript_list.find_generated_transcript(['en'])
+                print(f"Otomatik transkript deneniyor...")
+                transcript_data = YouTubeTranscriptApi.get_transcript(
+                    video_id,
+                    cookies=cookies
+                )
+                detected_language = 'auto'
+                print(f"Otomatik transkript bulundu!")
         
-        transcript_data = transcript.fetch()
+        print(f"Transkript verisi alındı: {len(transcript_data)} satır")
         
         # Tam metin - zaman damgaları ile birlikte
         full_transcript = []
@@ -71,14 +99,19 @@ def get_transcript(video_id, language='tr'):
         return {
             'full_text': '\n'.join(full_transcript),
             'simple_text': simple_text,
-            'language': transcript.language_code
+            'language': detected_language
         }, None
     
     except TranscriptsDisabled:
+        print(f"HATA: Transkript kapalı")
         return None, "Bu video için transkript kapalı."
     except NoTranscriptFound:
+        print(f"HATA: Transkript bulunamadı")
         return None, "Bu video için transkript bulunamadı."
     except Exception as e:
+        print(f"HATA: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None, f"Hata: {str(e)}"
 
 def format_timestamp(seconds):
@@ -145,60 +178,92 @@ def index():
 
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript_api():
-    data = request.json
-    url = data.get('url')
-    use_cache = data.get('use_cache', True)
-    generate_summary_flag = data.get('generate_summary', False)
-    include_timestamps = data.get('include_timestamps', True)
+    try:
+        data = request.json
+        url = data.get('url')
+        use_cache = data.get('use_cache', True)
+        generate_summary_flag = data.get('generate_summary', False)
+        include_timestamps = data.get('include_timestamps', True)
+        
+        print(f"\n=== YENİ İSTEK ===")
+        print(f"URL: {url}")
+        print(f"Cache: {use_cache}, Summary: {generate_summary_flag}, Timestamps: {include_timestamps}")
+        
+        if not url:
+            return jsonify({'error': 'URL gerekli'}), 400
+        
+        video_id = extract_video_id(url)
+        print(f"Video ID: {video_id}")
+        
+        if not video_id:
+            return jsonify({'error': 'Geçersiz YouTube URL\'si'}), 400
+        
+        # Önce cache'e bak
+        if use_cache:
+            print(f"Cache kontrol ediliyor...")
+            cached_record, error = get_from_pocketbase(video_id)
+            if cached_record:
+                print(f"Cache'den bulundu!")
+                transcript_text = cached_record.full_transcript if include_timestamps else cached_record.simple_transcript
+                return jsonify({
+                    'success': True,
+                    'video_id': video_id,
+                    'transcript': transcript_text,
+                    'summary': cached_record.summary,
+                    'language': cached_record.language,
+                    'from_cache': True,
+                    'record_id': cached_record.id
+                })
+            else:
+                print(f"Cache'de bulunamadı: {error}")
+        
+        # Transkripti al
+        print(f"Transkript alınıyor...")
+        transcript_data, error = get_transcript(video_id)
+        if error:
+            print(f"Transkript hatası: {error}")
+            return jsonify({'error': error}), 400
+        
+        print(f"Transkript başarıyla alındı!")
+        
+        summary = None
+        if generate_summary_flag and transcript_data:
+            print(f"Özet oluşturuluyor...")
+            summary, sum_error = generate_summary(transcript_data['simple_text'])
+            if sum_error:
+                print(f"Özet hatası: {sum_error}")
+                summary = f"Özet oluşturulamadı: {sum_error}"
+            else:
+                print(f"Özet başarıyla oluşturuldu!")
+        
+        # PocketBase'e kaydet
+        print(f"Veritabanına kaydediliyor...")
+        record_id, save_error = save_to_pocketbase(video_id, url, transcript_data, summary)
+        if save_error:
+            print(f"Kayıt hatası: {save_error}")
+        else:
+            print(f"Başarıyla kaydedildi! Record ID: {record_id}")
+        
+        transcript_text = transcript_data['full_text'] if include_timestamps else transcript_data['simple_text']
+        
+        return jsonify({
+            'success': True,
+            'video_id': video_id,
+            'transcript': transcript_text,
+            'summary': summary,
+            'language': transcript_data['language'],
+            'from_cache': False,
+            'saved': record_id is not None,
+            'record_id': record_id
+        })
     
-    if not url:
-        return jsonify({'error': 'URL gerekli'}), 400
-    
-    video_id = extract_video_id(url)
-    if not video_id:
-        return jsonify({'error': 'Geçersiz YouTube URL\'si'}), 400
-    
-    # Önce cache'e bak
-    if use_cache:
-        cached_record, error = get_from_pocketbase(video_id)
-        if cached_record:
-            transcript_text = cached_record.full_transcript if include_timestamps else cached_record.simple_transcript
-            return jsonify({
-                'success': True,
-                'video_id': video_id,
-                'transcript': transcript_text,
-                'summary': cached_record.summary,
-                'language': cached_record.language,
-                'from_cache': True,
-                'record_id': cached_record.id
-            })
-    
-    # Transkripti al
-    transcript_data, error = get_transcript(video_id)
-    if error:
-        return jsonify({'error': error}), 400
-    
-    summary = None
-    if generate_summary_flag and transcript_data:
-        summary, sum_error = generate_summary(transcript_data['simple_text'])
-        if sum_error:
-            summary = f"Özet oluşturulamadı: {sum_error}"
-    
-    # PocketBase'e kaydet
-    record_id, save_error = save_to_pocketbase(video_id, url, transcript_data, summary)
-    
-    transcript_text = transcript_data['full_text'] if include_timestamps else transcript_data['simple_text']
-    
-    return jsonify({
-        'success': True,
-        'video_id': video_id,
-        'transcript': transcript_text,
-        'summary': summary,
-        'language': transcript_data['language'],
-        'from_cache': False,
-        'saved': record_id is not None,
-        'record_id': record_id
-    })
+    except Exception as e:
+        print(f"\n!!! BEKLENMEYEN HATA !!!")
+        print(f"Hata tipi: {type(e).__name__}")
+        print(f"Hata mesajı: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
