@@ -6,3 +6,4 @@ pocketbase
 venv/
 .venv/
 .DS_Store
+*.log
