@@ -11,8 +11,8 @@ echo -e "${BLUE}=== PocketBase Kurulum Scripti ===${NC}"
 # 1. PocketBase kontrolü ve indirme
 if [ ! -f "pocketbase" ]; then
     echo -e "${BLUE}PocketBase bulunamadı. İndiriliyor...${NC}"
-    # v0.22.4 Linux AMD64
-    wget https://github.com/pocketbase/pocketbase/releases/download/v0.22.4/pocketbase_0.22.4_linux_amd64.zip -O pocketbase.zip
+    # v0.36.1 Linux AMD64
+    wget https://github.com/pocketbase/pocketbase/releases/download/v0.36.1/pocketbase_0.36.1_linux_amd64.zip -O pocketbase.zip
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}İndirme başarısız oldu.${NC}"
@@ -40,7 +40,7 @@ if [ ! -d "pb_data" ]; then
     ./pocketbase migrate up
 
     # Yönetici hesabı oluştur
-    ./pocketbase admin create "$ADMIN_EMAIL" "$ADMIN_PASS"
+    ./pocketbase superuser create "$ADMIN_EMAIL" "$ADMIN_PASS"
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Başlangıç kurulumu tamamlandı.${NC}"
