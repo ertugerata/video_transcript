@@ -5,6 +5,7 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 import google.generativeai as genai
 from pocketbase import PocketBase
 from pocketbase.client import ClientResponseError
+from pocketbase.models import FileUpload
 import re
 from datetime import datetime
 import os
@@ -161,13 +162,12 @@ def transcribe_audio_file(file_path, mime_type):
 def save_to_pocketbase(data, file_obj=None):
     """Transkripti PocketBase'e kaydeder"""
     try:
-        # Dosya varsa files parametresi hazırla
-        files = None
+        # Dosya varsa data'ya FileUpload olarak ekle
         if file_obj:
             # file_obj: ('filename', open_file_stream)
-            files = {'audio_file': file_obj}
+            data['audio_file'] = FileUpload(file_obj)
 
-        record = pb.collection('transcripts').create(data, files=files)
+        record = pb.collection('transcripts').create(data)
         return record.id, None
     except ClientResponseError as e:
         return None, f"Veritabanı hatası: {str(e)}"
