@@ -30,7 +30,7 @@ def transcribe_local(file_path: str, model_size: str = "base") -> str:
 
     try:
         model = get_model(model_size)
-        result = model.transcribe(file_path)
+        result = model.transcribe(file_path, fp16=False)
         return result["text"]
     except Exception as e:
         return f"Transkripsiyon hatası: {str(e)}"
