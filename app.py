@@ -2,7 +2,8 @@
 from flask import Flask, render_template, request, jsonify, send_file
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from pocketbase import PocketBase
 from pocketbase.client import ClientResponseError
 from pocketbase.models import FileUpload
@@ -21,12 +22,7 @@ app = Flask(__name__)
 pb = PocketBase('http://127.0.0.1:8090')
 
 # Gemini API yapılandırması
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-pro')
-# Ses için model (Gemini 1.5 Flash daha hızlı ve multimodal için iyi, ama Pro da olur)
-# Kodda gemini-pro kullanılmış, eğer hata verirse 1.5-flash'a geçilebilir.
-# Genellikle 'gemini-1.5-flash' ses için önerilir.
-multimodal_model = genai.GenerativeModel('gemini-1.5-flash')
+client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
 # YouTube URL patterns - Module level compilation for performance
 VIDEO_ID_PATTERNS = [
@@ -111,7 +107,7 @@ def format_timestamp(seconds):
         return f"{minutes:02d}:{secs:02d}"
 
 def generate_summary(text):
-    """Gemini Pro ile özet oluşturur"""
+    """Gemini ile özet oluşturur"""
     try:
         # Metin çok uzunsa kırp (Gemini 1.5 Pro 1M token alabilir ama biz yine de dikkatli olalım)
         # Gemini Pro (1.0) limiti 30k karakter civarıydı, 1.5 çok daha yüksek.
@@ -121,7 +117,11 @@ def generate_summary(text):
         {text[:100000]}
         """
         
-        response = model.generate_content(prompt)
+        # gemini-1.5-flash genellikle hızlı ve yeterli
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt
+        )
         return response.text, None
     except Exception as e:
         return None, f"Özet oluşturma hatası: {str(e)}"
@@ -132,26 +132,33 @@ def transcribe_audio_file(file_path, mime_type):
         print(f"Dosya Gemini'ye yükleniyor: {file_path} ({mime_type})")
 
         # Dosyayı Gemini File API'ye yükle
-        myfile = genai.upload_file(file_path, mime_type=mime_type)
+        # mime_type otomatik de algılanabilir ama varsa verelim
+        myfile = client.files.upload(
+            file=file_path,
+            config={'mime_type': mime_type}
+        )
         print(f"Yüklendi: {myfile.name}")
 
         # İşlenmesini bekle
-        while myfile.state.name == "PROCESSING":
+        while myfile.state == "PROCESSING":
             print("Dosya işleniyor...", end='\r')
             time.sleep(1)
-            myfile = genai.get_file(myfile.name)
+            myfile = client.files.get(name=myfile.name)
 
-        if myfile.state.name == "FAILED":
+        if myfile.state == "FAILED":
             raise ValueError("Gemini dosya işleme hatası")
 
         print("\nTranskript oluşturuluyor...")
         prompt = "Bu ses/video dosyasının tam, kelimesi kelimesine dökümünü (transkriptini) çıkar. Konuşmaları olduğu gibi yaz. Zaman damgası ekleme."
 
         # Ses için 1.5 Flash kullanıyoruz
-        response = multimodal_model.generate_content([prompt, myfile])
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=[prompt, myfile]
+        )
         
         # İşimiz bitince dosyayı silebiliriz (opsiyonel, Gemini kotası için iyi olur)
-        # genai.delete_file(myfile.name)
+        # client.files.delete(name=myfile.name)
 
         return response.text, None
 
