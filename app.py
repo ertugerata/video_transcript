@@ -27,15 +27,16 @@ model = genai.GenerativeModel('gemini-pro')
 # Genellikle 'gemini-1.5-flash' ses için önerilir.
 multimodal_model = genai.GenerativeModel('gemini-1.5-flash')
 
+# YouTube URL patterns - Module level compilation for performance
+VIDEO_ID_PATTERNS = [
+    re.compile(r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)'),
+    re.compile(r'youtube\.com\/embed\/([^&\n?#]+)'),
+]
+
 def extract_video_id(url):
     """YouTube URL'sinden video ID çıkarır"""
-    patterns = [
-        r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)',
-        r'youtube\.com\/embed\/([^&\n?#]+)',
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, url)
+    for pattern in VIDEO_ID_PATTERNS:
+        match = pattern.search(url)
         if match:
             return match.group(1)
     return None
