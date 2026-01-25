@@ -13,6 +13,7 @@ import os
 import time
 import tempfile
 from dotenv import load_dotenv
+from local_media_server import transcribe_local
 
 load_dotenv()
 
@@ -294,11 +295,15 @@ def handle_file_upload():
             file.save(temp.name)
             temp_path = temp.name
 
-        # Gemini ile transkript al
-        transcript_text, error = transcribe_audio_file(temp_path, file.mimetype)
+        # Whisper ile transkript al (Local Media Server)
+        print("Whisper (Local) ile transkript alınıyor...")
+        transcript_result = transcribe_local(temp_path, model_size="base")
         
-        if error:
-            return jsonify({'error': error}), 400
+        # Hata kontrolü
+        if transcript_result.startswith("Hata:") or transcript_result.startswith("Transkripsiyon hatası:"):
+            return jsonify({'error': transcript_result}), 400
+
+        transcript_text = transcript_result
 
         summary = None
         if generate_summary_flag:

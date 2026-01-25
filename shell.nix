@@ -14,6 +14,7 @@ pkgs.mkShell {
     # Ek bağımlılıklar
     libffi
     openssl
+    ffmpeg
   ];
 
   shellHook = ''
