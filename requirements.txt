@@ -3,3 +3,6 @@ youtube-transcript-api==1.2.3
 google-genai>=0.3.0
 pocketbase>=0.15.0
 python-dotenv==1.0.0
+fastmcp[cli]
+openai-whisper
+torch
