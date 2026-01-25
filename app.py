@@ -24,6 +24,56 @@ pb = PocketBase('http://127.0.0.1:8090')
 # Gemini API yapılandırması
 client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
+# Fallback models to try in order
+GEMINI_MODELS = [
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-001',
+    'gemini-1.5-flash-002',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-pro',
+    'gemini-1.5-pro-001'
+]
+
+def generate_content_with_retry(contents, config=None):
+    """
+    Tries to generate content using a list of fallback models.
+    """
+    last_error = None
+
+    # Try models in order
+    for model_name in GEMINI_MODELS:
+        try:
+            print(f"Trying Gemini model: {model_name}")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=config
+            )
+            print(f"Success with model: {model_name}")
+            return response
+        except Exception as e:
+            error_str = str(e)
+            print(f"Failed with model {model_name}: {error_str}")
+
+            # If it's a 404 (Not Found), we try the next one.
+            # If it's a 429 (Resource Exhausted) or other errors, we might still want to try others or stop.
+            # For now, we catch all and retry, but we could be more specific.
+            if "404" in error_str or "NOT_FOUND" in error_str or "not found" in error_str:
+                last_error = e
+                continue
+
+            # For other errors, we might want to fail fast, but
+            # sometimes different models have different quotas/availabilities.
+            # Let's keep trying.
+            last_error = e
+
+    # If we get here, all models failed
+    if last_error:
+        print(f"All models failed. Last error: {last_error}")
+        raise last_error
+    else:
+        raise Exception("No models available or unknown error")
+
 # YouTube URL patterns - Module level compilation for performance
 VIDEO_ID_PATTERNS = [
     re.compile(r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)'),
@@ -117,11 +167,8 @@ def generate_summary(text):
         {text[:100000]}
         """
         
-        # gemini-1.5-flash genellikle hızlı ve yeterli
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt
-        )
+        # Helper fonksiyonu kullan (fallback mekanizması ile)
+        response = generate_content_with_retry(contents=prompt)
         return response.text, None
     except Exception as e:
         return None, f"Özet oluşturma hatası: {str(e)}"
@@ -151,11 +198,8 @@ def transcribe_audio_file(file_path, mime_type):
         print("\nTranskript oluşturuluyor...")
         prompt = "Bu ses/video dosyasının tam, kelimesi kelimesine dökümünü (transkriptini) çıkar. Konuşmaları olduğu gibi yaz. Zaman damgası ekleme."
 
-        # Ses için 1.5 Flash kullanıyoruz
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=[prompt, myfile]
-        )
+        # Helper fonksiyonu kullan (fallback mekanizması ile)
+        response = generate_content_with_retry(contents=[prompt, myfile])
         
         # İşimiz bitince dosyayı silebiliriz (opsiyonel, Gemini kotası için iyi olur)
         # client.files.delete(name=myfile.name)
@@ -365,6 +409,21 @@ def handle_youtube_url(data):
         'saved': record_id is not None,
         'record_id': record_id
     })
+
+@app.route('/api/debug/models', methods=['GET'])
+def list_models():
+    """Mevcut Gemini modellerini listeler"""
+    try:
+        models_info = []
+        for model in client.models.list():
+            models_info.append({
+                'name': model.name,
+                'supported_generation_methods': model.supported_generation_methods,
+                'display_name': getattr(model, 'display_name', '')
+            })
+        return jsonify({'success': True, 'models': models_info})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
