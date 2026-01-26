@@ -12,8 +12,9 @@ from datetime import datetime
 import os
 import time
 import tempfile
+import io
 from dotenv import load_dotenv
-from local_media_server import transcribe_local
+from local_media_server import transcribe_local, convert_media_core
 
 load_dotenv()
 
@@ -56,26 +57,19 @@ def generate_content_with_retry(contents, config=None):
             error_str = str(e)
             print(f"Failed with model {model_name}: {error_str}")
 
-            # If it's a 404 (Not Found), we try the next one.
-            # If it's a 429 (Resource Exhausted) or other errors, we might still want to try others or stop.
-            # For now, we catch all and retry, but we could be more specific.
             if "404" in error_str or "NOT_FOUND" in error_str or "not found" in error_str:
                 last_error = e
                 continue
 
-            # For other errors, we might want to fail fast, but
-            # sometimes different models have different quotas/availabilities.
-            # Let's keep trying.
             last_error = e
 
-    # If we get here, all models failed
     if last_error:
         print(f"All models failed. Last error: {last_error}")
         raise last_error
     else:
         raise Exception("No models available or unknown error")
 
-# YouTube URL patterns - Module level compilation for performance
+# YouTube URL patterns
 VIDEO_ID_PATTERNS = [
     re.compile(r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)'),
     re.compile(r'youtube\.com\/embed\/([^&\n?#]+)'),
@@ -94,13 +88,11 @@ def get_transcript(video_id, language='tr'):
     try:
         print(f"Video ID için transkript alınıyor: {video_id}")
         
-        # Cookies dosyası varsa kullan
         cookies_file = 'youtube_cookies.txt'
         cookies = cookies_file if os.path.exists(cookies_file) else None
         
         ytt = YouTubeTranscriptApi()
         
-        # Basit yöntem - direkt transkript al
         try:
             print(f"Türkçe transkript deneniyor...")
             transcript_data = ytt.fetch(video_id, languages=['tr'])
@@ -120,14 +112,12 @@ def get_transcript(video_id, language='tr'):
         
         print(f"Transkript verisi alındı: {len(transcript_data)} satır")
         
-        # Tam metin - zaman damgaları ile birlikte
         full_transcript = []
         for item in transcript_data:
             timestamp = format_timestamp(item.start)
             text = item.text
             full_transcript.append(f"[{timestamp}] {text}")
         
-        # Basit metin (zaman damgası olmadan)
         simple_text = ' '.join([item.text for item in transcript_data])
         
         return {
@@ -160,63 +150,19 @@ def format_timestamp(seconds):
 def generate_summary(text):
     """Gemini ile özet oluşturur"""
     try:
-        # Metin çok uzunsa kırp (Gemini 1.5 Pro 1M token alabilir ama biz yine de dikkatli olalım)
-        # Gemini Pro (1.0) limiti 30k karakter civarıydı, 1.5 çok daha yüksek.
-        # Yine de güvenli sınırda tutalım.
         prompt = f"""Aşağıdaki metni özetle. Önemli noktaları maddeler halinde belirt:
 
         {text[:100000]}
         """
-        
-        # Helper fonksiyonu kullan (fallback mekanizması ile)
         response = generate_content_with_retry(contents=prompt)
         return response.text, None
     except Exception as e:
         return None, f"Özet oluşturma hatası: {str(e)}"
 
-def transcribe_audio_file(file_path, mime_type):
-    """Gemini ile ses dosyasını transkript eder"""
-    try:
-        print(f"Dosya Gemini'ye yükleniyor: {file_path} ({mime_type})")
-
-        # Dosyayı Gemini File API'ye yükle
-        # mime_type otomatik de algılanabilir ama varsa verelim
-        myfile = client.files.upload(
-            file=file_path,
-            config={'mime_type': mime_type}
-        )
-        print(f"Yüklendi: {myfile.name}")
-
-        # İşlenmesini bekle
-        while myfile.state == "PROCESSING":
-            print("Dosya işleniyor...", end='\r')
-            time.sleep(1)
-            myfile = client.files.get(name=myfile.name)
-
-        if myfile.state == "FAILED":
-            raise ValueError("Gemini dosya işleme hatası")
-
-        print("\nTranskript oluşturuluyor...")
-        prompt = "Bu ses/video dosyasının tam, kelimesi kelimesine dökümünü (transkriptini) çıkar. Konuşmaları olduğu gibi yaz. Zaman damgası ekleme."
-
-        # Helper fonksiyonu kullan (fallback mekanizması ile)
-        response = generate_content_with_retry(contents=[prompt, myfile])
-        
-        # İşimiz bitince dosyayı silebiliriz (opsiyonel, Gemini kotası için iyi olur)
-        # client.files.delete(name=myfile.name)
-
-        return response.text, None
-
-    except Exception as e:
-        print(f"AI Ses Hatası: {str(e)}")
-        return None, f"AI Transkript hatası: {str(e)}"
-
 def save_to_pocketbase(data, file_obj=None):
     """Transkripti PocketBase'e kaydeder"""
     try:
-        # Dosya varsa data'ya FileUpload olarak ekle
         if file_obj:
-            # file_obj: ('filename', open_file_stream)
             data['audio_file'] = FileUpload(file_obj)
 
         record = pb.collection('transcripts').create(data)
@@ -246,18 +192,14 @@ def index():
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript_api():
     try:
-        # Dosya Yükleme Kontrolü
         if 'audio_file' in request.files:
             return handle_file_upload()
         
-        # JSON (YouTube URL) Kontrolü
         if request.is_json:
             data = request.json
             return handle_youtube_url(data)
 
-        # Eğer form data içinde JSON verisi varsa (multipart ama dosya yoksa)
         if request.form.get('url'):
-             # Form data'yı dict'e çevirip işle
              data = {
                  'url': request.form.get('url'),
                  'use_cache': request.form.get('use_cache') == 'true',
@@ -276,30 +218,74 @@ def get_transcript_api():
         traceback.print_exc()
         return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
 
+@app.route('/api/convert', methods=['POST'])
+def convert_media():
+    temp_path = None
+    output_path = None
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'Dosya bulunamadı'}), 400
+
+        file = request.files['file']
+        target_format = request.form.get('format', 'mp3')
+
+        if file.filename == '':
+            return jsonify({'error': 'Dosya seçilmedi'}), 400
+
+        # Create temp file
+        suffix = os.path.splitext(file.filename)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            file.save(temp.name)
+            temp_path = temp.name
+
+        # Convert
+        output_path = convert_media_core(temp_path, target_format)
+
+        # Read file into memory to allow cleanup
+        with open(output_path, 'rb') as f:
+            data = f.read()
+
+        # Clean up output file immediately
+        if os.path.exists(output_path):
+            os.unlink(output_path)
+
+        return send_file(
+            io.BytesIO(data),
+            as_attachment=True,
+            download_name=f"{os.path.splitext(file.filename)[0]}.{target_format}",
+            mimetype=f"audio/{target_format}"
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        # Cleanup input temp file
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
+
 def handle_file_upload():
     """Dosya yükleme işlemlerini yönetir"""
     temp_path = None
     try:
         file = request.files['audio_file']
         generate_summary_flag = request.form.get('generate_summary') == 'true'
+        model_size = request.form.get('model_size', 'base')
         
         if file.filename == '':
             return jsonify({'error': 'Dosya seçilmedi'}), 400
 
         print(f"\n=== YENİ DOSYA YÜKLEME ===")
         print(f"Dosya: {file.filename}")
+        print(f"Model: {model_size}")
         
-        # Geçici dosyaya kaydet
         suffix = os.path.splitext(file.filename)[1]
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
             file.save(temp.name)
             temp_path = temp.name
 
-        # Whisper ile transkript al (Local Media Server)
         print("Whisper (Local) ile transkript alınıyor...")
-        transcript_result = transcribe_local(temp_path, model_size="base")
+        transcript_result = transcribe_local(temp_path, model_size=model_size)
         
-        # Hata kontrolü
         if transcript_result.startswith("Hata:") or transcript_result.startswith("Transkripsiyon hatası:"):
             return jsonify({'error': transcript_result}), 400
 
@@ -312,17 +298,15 @@ def handle_file_upload():
             if sum_error:
                 summary = f"Özet oluşturulamadı: {sum_error}"
 
-        # PocketBase'e kaydet
         print("Veritabanına kaydediliyor...")
 
-        # Dosyayı tekrar açıp PocketBase'e gönder
         with open(temp_path, 'rb') as f:
             data = {
-                "video_id": "", # Dosya yüklemelerinde boş
+                "video_id": "",
                 "url": "",
                 "full_transcript": transcript_text,
-                "simple_transcript": transcript_text, # Ses dosyasında şimdilik ikisi aynı
-                "language": "auto", # Gemini auto detect ediyor
+                "simple_transcript": transcript_text,
+                "language": "auto",
                 "summary": summary or "",
                 "created": datetime.now().isoformat()
             }
@@ -343,7 +327,6 @@ def handle_file_upload():
         })
 
     finally:
-        # Geçici dosyayı temizle
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
 
@@ -364,7 +347,6 @@ def handle_youtube_url(data):
     if not video_id:
         return jsonify({'error': 'Geçersiz YouTube URL\'si'}), 400
 
-    # Cache kontrol
     if use_cache:
         cached_record, error = get_from_pocketbase(video_id)
         if cached_record:
@@ -379,7 +361,6 @@ def handle_youtube_url(data):
                 'record_id': cached_record.id
             })
 
-    # Transkript al
     transcript_data, error = get_transcript(video_id)
     if error:
         return jsonify({'error': error}), 400
@@ -390,7 +371,6 @@ def handle_youtube_url(data):
         if sum_error:
             summary = f"Özet oluşturulamadı: {sum_error}"
 
-    # Kaydet
     data_pb = {
         "video_id": video_id,
         "url": url,
@@ -459,7 +439,6 @@ def export_transcript(record_id):
         record = pb.collection('transcripts').get_one(record_id)
         format_type = request.args.get('format', 'txt')
         
-        # Video ID yoksa (ses dosyası ise) generic bir isim kullan
         safe_name = getattr(record, 'video_id', '') or f"upload_{record.id}"
 
         if format_type == 'md':

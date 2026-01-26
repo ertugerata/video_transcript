@@ -46,6 +46,7 @@
             display: flex;
             margin-bottom: 24px;
             border-bottom: 2px solid #e2e8f0;
+            flex-wrap: wrap;
         }
 
         .tab {
@@ -78,7 +79,7 @@
             margin-bottom: 8px;
         }
 
-        input[type="text"] {
+        input[type="text"], select {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e2e8f0;
@@ -87,7 +88,7 @@
             transition: all 0.3s;
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus, select:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -297,14 +298,15 @@
 <body>
     <div class="container">
         <div class="card">
-            <h1>🎥 YouTube & Ses Transkript</h1>
-            <p class="subtitle">YouTube videoları veya ses dosyaları için AI destekli transkript ve özet</p>
+            <h1>🎥 Medya Merkezi</h1>
+            <p class="subtitle">YouTube transkripti, Ses-Metin dönüşümü ve Format çevirici</p>
 
             <div id="alert" class="alert"></div>
 
             <div class="tabs">
                 <div class="tab active" data-tab="url" onclick="switchTab('url')">YouTube URL</div>
                 <div class="tab" data-tab="file" onclick="switchTab('file')">Ses Dosyası Yükle</div>
+                <div class="tab" data-tab="convert" onclick="switchTab('convert')">Format Dönüştürücü</div>
             </div>
             
             <div id="urlSection">
@@ -323,26 +325,57 @@
                     <label for="audioFile">Ses veya Video Dosyası Seçin</label>
                     <input type="file" id="audioFile" accept="audio/*,video/*">
                     <p style="font-size: 13px; color: #718096; margin-top: 8px;">
-                        Desteklenen formatlar: MP3, WAV, M4A, MP4, MPEG, OGG. Maksimum 500MB.
+                        Desteklenen formatlar: MP3, WAV, M4A, MP4, MPEG, OGG.
                     </p>
+                </div>
+                <div class="form-group">
+                    <label for="modelSize">Whisper Model Boyutu</label>
+                    <select id="modelSize">
+                        <option value="tiny">Tiny (Çok Hızlı, Düşük Kalite)</option>
+                        <option value="base" selected>Base (Hızlı, Orta Kalite)</option>
+                        <option value="small">Small (Dengeli)</option>
+                        <option value="medium">Medium (Yavaş, İyi Kalite)</option>
+                        <option value="large">Large (Çok Yavaş, En İyi Kalite)</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="checkbox-group">
-                <input type="checkbox" id="includeTimestamps" checked>
-                <label for="includeTimestamps" style="margin: 0">Zaman damgalarını dahil et ([00:00] formatında)</label>
+            <div id="convertSection" style="display: none;">
+                <div class="form-group">
+                    <label for="convertFile">Dönüştürülecek Dosya</label>
+                    <input type="file" id="convertFile" accept="audio/*,video/*">
+                </div>
+                <div class="form-group">
+                    <label for="targetFormat">Hedef Format</label>
+                    <select id="targetFormat">
+                        <option value="mp3" selected>MP3 (Ses)</option>
+                        <option value="wav">WAV (Ses)</option>
+                        <option value="m4a">M4A (Ses)</option>
+                        <option value="ogg">OGG (Ses)</option>
+                        <option value="mp4">MP4 (Video)</option>
+                        <option value="mkv">MKV (Video)</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="convertMedia()">Dönüştür ve İndir</button>
             </div>
 
-            <div class="checkbox-group">
-                <input type="checkbox" id="generateSummary">
-                <label for="generateSummary" style="margin: 0">Gemini ile özet oluştur (opsiyonel)</label>
-            </div>
+            <div id="transcriptOptions">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="includeTimestamps" checked>
+                    <label for="includeTimestamps" style="margin: 0">Zaman damgalarını dahil et ([00:00] formatında)</label>
+                </div>
 
-            <button class="btn" onclick="getTranscript()">Transkripti Oluştur</button>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="generateSummary">
+                    <label for="generateSummary" style="margin: 0">Gemini ile özet oluştur (opsiyonel)</label>
+                </div>
+
+                <button id="mainBtn" class="btn" onclick="getTranscript()">Transkripti Oluştur</button>
+            </div>
 
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p style="margin-top: 12px; color: #4a5568;">İşleniyor... (Ses dosyaları için bu işlem birkaç dakika sürebilir)</p>
+                <p style="margin-top: 12px; color: #4a5568;">İşlem yapılıyor... Lütfen bekleyin.</p>
             </div>
 
             <div id="transcriptBox" class="result-box">
@@ -385,15 +418,17 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.tab[data-tab="${mode}"]`).classList.add('active');
 
-            if (mode === 'url') {
-                document.getElementById('urlSection').style.display = 'block';
-                document.getElementById('fileSection').style.display = 'none';
-                document.getElementById('useCacheContainer').style.display = 'flex';
+            const sections = ['urlSection', 'fileSection', 'convertSection'];
+            sections.forEach(s => document.getElementById(s).style.display = 'none');
+
+            document.getElementById(`${mode}Section`).style.display = 'block';
+
+            if (mode === 'convert') {
+                document.getElementById('transcriptOptions').style.display = 'none';
+                document.getElementById('transcriptBox').style.display = 'none';
+                document.getElementById('summaryBox').style.display = 'none';
             } else {
-                document.getElementById('urlSection').style.display = 'none';
-                document.getElementById('fileSection').style.display = 'block';
-                // Cache is not applicable for new file uploads in this simple implementation
-                document.getElementById('useCacheContainer').style.display = 'none';
+                document.getElementById('transcriptOptions').style.display = 'block';
             }
         }
 
@@ -405,6 +440,54 @@
             setTimeout(() => {
                 alert.style.display = 'none';
             }, 5000);
+        }
+
+        async function convertMedia() {
+            const fileInput = document.getElementById('convertFile');
+            const format = document.getElementById('targetFormat').value;
+
+            if (fileInput.files.length === 0) {
+                showAlert('Lütfen bir dosya seçin', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('format', format);
+
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                const response = await fetch('/api/convert', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Dönüştürme hatası');
+                }
+
+                // Get filename from header if possible, else generate
+                const filename = `converted_${Date.now()}.${format}`;
+                const blob = await response.blob();
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                showAlert('Dosya başarıyla dönüştürüldü ve indirildi! 🚀', 'success');
+
+            } catch (error) {
+                showAlert('Hata: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
         async function getTranscript() {
@@ -434,6 +517,8 @@
             } else {
                 // File Mode
                 const fileInput = document.getElementById('audioFile');
+                const modelSize = document.getElementById('modelSize').value;
+
                 if (fileInput.files.length === 0) {
                     showAlert('Lütfen bir dosya seçin', 'error');
                     return;
@@ -443,9 +528,9 @@
                 formData.append('audio_file', fileInput.files[0]);
                 formData.append('generate_summary', generateSummary);
                 formData.append('include_timestamps', includeTimestamps);
+                formData.append('model_size', modelSize);
 
                 body = formData;
-                // Content-Type header is set automatically by fetch for FormData
             }
 
             document.getElementById('loading').style.display = 'block';
@@ -538,8 +623,6 @@
                                 switchTab('url');
                                 document.getElementById('url').value = item.url;
                             } else {
-                                // Can't "reload" a file input, but we could maybe load the result?
-                                // For now, just show alert or do nothing special.
                                 switchTab('file');
                                 showAlert('Bu geçmiş kaydı bir dosya yüklemesidir. Tekrar yüklemek için dosya seçin.', 'info');
                             }
