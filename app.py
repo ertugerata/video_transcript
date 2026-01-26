@@ -439,16 +439,14 @@ def get_history():
             {'sort': '-created'}
         )
         
-        items = []
-        for record in records.items:
-            items.append({
-                'id': record.id,
-                'video_id': getattr(record, 'video_id', ''),
-                'url': getattr(record, 'url', ''),
-                'created': record.created,
-                'language': record.language,
-                'has_summary': bool(record.summary)
-            })
+        items = [{
+            'id': record.id,
+            'video_id': getattr(record, 'video_id', ''),
+            'url': getattr(record, 'url', ''),
+            'created': record.created,
+            'language': record.language,
+            'has_summary': bool(record.summary)
+        } for record in records.items]
         
         return jsonify({'success': True, 'items': items})
     except Exception as e:
