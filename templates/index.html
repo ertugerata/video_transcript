@@ -318,6 +318,10 @@
                     <input type="checkbox" id="useCache" checked>
                     <label for="useCache" style="margin: 0">Önbelleği kullan (varsa)</label>
                 </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="useLocalWorkflow">
+                    <label for="useLocalWorkflow" style="margin: 0">Yerel Model Kullan (İndir ve Whisper ile işle)</label>
+                </div>
             </div>
 
             <div id="fileSection" style="display: none;">
@@ -500,9 +504,44 @@
             if (currentMode === 'url') {
                 const url = document.getElementById('url').value.trim();
                 const useCache = document.getElementById('useCache').checked;
+                const useLocalWorkflow = document.getElementById('useLocalWorkflow').checked;
 
                 if (!url) {
                     showAlert('Lütfen bir YouTube URL\'si girin', 'error');
+                    return;
+                }
+
+                if (useLocalWorkflow) {
+                    document.getElementById('loading').style.display = 'block';
+                    document.getElementById('transcriptBox').style.display = 'none';
+                    document.getElementById('summaryBox').style.display = 'none';
+
+                    try {
+                        const response = await fetch('/api/process_youtube_local', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ url: url })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.error) {
+                            showAlert(data.error, 'error');
+                            return;
+                        }
+
+                        document.getElementById('transcript').textContent = data.report;
+                        document.getElementById('transcriptBox').style.display = 'block';
+                        document.getElementById('transcriptStats').innerHTML = '<strong>İşlem Raporu</strong>';
+
+                        showAlert('Yerel işlem tamamlandı!', 'success');
+                        loadHistory();
+
+                    } catch (error) {
+                        showAlert('Hata: ' + error.message, 'error');
+                    } finally {
+                        document.getElementById('loading').style.display = 'none';
+                    }
                     return;
                 }
 
