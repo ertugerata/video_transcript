@@ -14,7 +14,7 @@ import time
 import tempfile
 import io
 from dotenv import load_dotenv
-from local_media_server import transcribe_local, convert_media_core
+from local_media_server import transcribe_local, convert_media_core, process_youtube_workflow
 
 load_dotenv()
 
@@ -217,6 +217,34 @@ def get_transcript_api():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
+
+@app.route('/api/process_youtube_local', methods=['POST'])
+def process_youtube_local():
+    """
+    YouTube videosunu indirir, parçalar ve yerel Whisper ile işler.
+    (local_media_server.process_youtube_workflow kullanır)
+    """
+    try:
+        data = request.json
+        if not data or 'url' not in data:
+            return jsonify({'error': 'URL gerekli'}), 400
+
+        url = data['url']
+        print(f"\n=== YEREL YOUTUBE İŞLEME İSTEĞİ ===")
+        print(f"URL: {url}")
+
+        # Bu işlem uzun sürebilir, şimdilik bloklayarak çalıştırıyoruz.
+        # İdealde background worker kullanılmalı.
+        report = process_youtube_workflow(url)
+
+        return jsonify({
+            'success': True,
+            'report': report
+        })
+
+    except Exception as e:
+        print(f"HATA: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/convert', methods=['POST'])
 def convert_media():
