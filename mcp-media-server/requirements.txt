@@ -1,0 +1,5 @@
+fastmcp[cli]
+openai-whisper
+yt-dlp
+pocketbase
+torch
