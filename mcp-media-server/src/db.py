@@ -1,4 +1,6 @@
 from supabase import create_client, Client
+import os
+from datetime import datetime
 
 # Supabase bağlantısı
 url: str = os.getenv("SUPABASE_URL")

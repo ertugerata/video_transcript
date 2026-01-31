@@ -2,11 +2,18 @@ import os
 import shutil
 import traceback
 from fastmcp import FastMCP
-from .download import download_youtube_audio
-from .audio import split_media
-from .transcribe import transcribe_local
-from .db import save_chunk_to_db, update_transcript
-from .llm import generate_summary
+try:
+    from .download import download_youtube_audio
+    from .audio import split_media
+    from .transcribe import transcribe_local
+    from .db import save_chunk_to_db, update_transcript
+    from .llm import generate_summary
+except ImportError:
+    from download import download_youtube_audio
+    from audio import split_media
+    from transcribe import transcribe_local
+    from db import save_chunk_to_db, update_transcript
+    from llm import generate_summary
 
 # Sunucuyu başlatıyoruz
 mcp = FastMCP("LocalMediaServer")

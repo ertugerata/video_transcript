@@ -12,9 +12,23 @@ import time
 import tempfile
 import io
 from dotenv import load_dotenv
-from local_media_server import transcribe_local, convert_media_core, process_youtube_workflow
 
 load_dotenv()
+
+import sys
+# Add mcp-media-server/src to python path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'mcp-media-server', 'src'))
+
+try:
+    from transcribe import transcribe_local
+    from audio import convert_media_core
+    from server import process_youtube_workflow
+except ImportError as e:
+    print(f"Import hatası (mcp-media-server): {e}")
+    # Dummy functions to prevent crash if import fails
+    def transcribe_local(*args, **kwargs): return "Modül yüklenemedi"
+    def convert_media_core(*args, **kwargs): raise Exception("Modül yüklenemedi")
+    def process_youtube_workflow(*args, **kwargs): return "Modül yüklenemedi"
 
 app = Flask(__name__)
 
@@ -442,7 +456,6 @@ def list_models():
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Geçmiş kayıtları getirir"""
-    """Geçmiş kayıtları getirir"""
     try:
         response = supabase.table('transcripts').select("*").order('created', desc=True).limit(50).execute()
         
@@ -461,8 +474,6 @@ def get_history():
 
 @app.route('/api/export/<record_id>', methods=['GET'])
 def export_transcript(record_id):
-    """Transkripti text dosyası olarak indirir"""
-    try:
     """Transkripti text dosyası olarak indirir"""
     try:
         response = supabase.table('transcripts').select("*").eq('id', record_id).execute()

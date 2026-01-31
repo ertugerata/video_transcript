@@ -7,3 +7,4 @@ fastmcp[cli]
 openai-whisper
 torch
 yt-dlp
+requests
