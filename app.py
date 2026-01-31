@@ -4,9 +4,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 from google import genai
 from google.genai import types
-from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
-from pocketbase.models import FileUpload
+from supabase import create_client, Client
 import re
 from datetime import datetime
 import os
@@ -21,7 +19,10 @@ load_dotenv()
 app = Flask(__name__)
 
 # PocketBase bağlantısı
-pb = PocketBase('http://127.0.0.1:8090')
+# Supabase bağlantısı
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
 # Gemini API yapılandırması
 client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
@@ -159,28 +160,27 @@ def generate_summary(text):
     except Exception as e:
         return None, f"Özet oluşturma hatası: {str(e)}"
 
-def save_to_pocketbase(data, file_obj=None):
-    """Transkripti PocketBase'e kaydeder"""
+def save_to_supabase(data, file_obj=None):
+    """Transkripti Supabase'e kaydeder"""
     try:
-        if file_obj:
-            data['audio_file'] = FileUpload(file_obj)
+        # TODO: Handle file upload to Supabase Storage if needed
+        # if file_obj:
+        #     data['audio_file'] = ... 
 
-        record = pb.collection('transcripts').create(data)
-        return record.id, None
-    except ClientResponseError as e:
-        return None, f"Veritabanı hatası: {str(e)}"
+        response = supabase.table('transcripts').insert(data).execute()
+        # Supabase returns the inserted data
+        if response.data:
+            return response.data[0]['id'], None
+        return None, "Kayıt başarısız, veri dönmedi."
     except Exception as e:
-        return None, f"Kayıt hatası: {str(e)}"
+        return None, f"Veritabanı hatası: {str(e)}"
 
-def get_from_pocketbase(video_id):
-    """PocketBase'den transkript getirir"""
+def get_from_supabase(video_id):
+    """Supabase'den transkript getirir"""
     try:
-        records = pb.collection('transcripts').get_list(
-            1, 1,
-            {'filter': f'video_id="{video_id}"'}
-        )
-        if records.items:
-            return records.items[0], None
+        response = supabase.table('transcripts').select("*").eq('video_id', video_id).execute()
+        if response.data:
+            return response.data[0], None
         return None, "Kayıt bulunamadı"
     except Exception as e:
         return None, f"Veritabanı hatası: {str(e)}"
@@ -338,7 +338,7 @@ def handle_file_upload():
                 "summary": summary or "",
                 "created": datetime.now().isoformat()
             }
-            record_id, save_error = save_to_pocketbase(data, file_obj=(file.filename, f))
+            record_id, save_error = save_to_supabase(data, file_obj=(file.filename, f))
 
         if save_error:
             print(f"Kayıt hatası: {save_error}")
@@ -376,17 +376,18 @@ def handle_youtube_url(data):
         return jsonify({'error': 'Geçersiz YouTube URL\'si'}), 400
 
     if use_cache:
-        cached_record, error = get_from_pocketbase(video_id)
+        cached_record, error = get_from_supabase(video_id)
         if cached_record:
-            transcript_text = cached_record.full_transcript if include_timestamps else cached_record.simple_transcript
+            # Supabase returns dict, not object
+            transcript_text = cached_record['full_transcript'] if include_timestamps else cached_record['simple_transcript']
             return jsonify({
                 'success': True,
                 'video_id': video_id,
                 'transcript': transcript_text,
-                'summary': cached_record.summary,
-                'language': cached_record.language,
+                'summary': cached_record.get('summary', ''),
+                'language': cached_record.get('language', ''),
                 'from_cache': True,
-                'record_id': cached_record.id
+                'record_id': cached_record['id']
             })
 
     transcript_data, error = get_transcript(video_id)
@@ -408,7 +409,7 @@ def handle_youtube_url(data):
         "summary": summary or "",
         "created": datetime.now().isoformat()
     }
-    record_id, save_error = save_to_pocketbase(data_pb)
+    record_id, save_error = save_to_supabase(data_pb)
 
     transcript_text = transcript_data['full_text'] if include_timestamps else transcript_data['simple_text']
 
@@ -441,20 +442,18 @@ def list_models():
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Geçmiş kayıtları getirir"""
+    """Geçmiş kayıtları getirir"""
     try:
-        records = pb.collection('transcripts').get_list(
-            1, 50,
-            {'sort': '-created'}
-        )
+        response = supabase.table('transcripts').select("*").order('created', desc=True).limit(50).execute()
         
         items = [{
-            'id': record.id,
-            'video_id': getattr(record, 'video_id', ''),
-            'url': getattr(record, 'url', ''),
-            'created': record.created,
-            'language': record.language,
-            'has_summary': bool(record.summary)
-        } for record in records.items]
+            'id': record['id'],
+            'video_id': record.get('video_id', ''),
+            'url': record.get('url', ''),
+            'created': record['created'], # Supabase returns ISO format usually
+            'language': record.get('language', ''),
+            'has_summary': bool(record.get('summary'))
+        } for record in response.data]
         
         return jsonify({'success': True, 'items': items})
     except Exception as e:
@@ -464,37 +463,43 @@ def get_history():
 def export_transcript(record_id):
     """Transkripti text dosyası olarak indirir"""
     try:
-        record = pb.collection('transcripts').get_one(record_id)
+    """Transkripti text dosyası olarak indirir"""
+    try:
+        response = supabase.table('transcripts').select("*").eq('id', record_id).execute()
+        if not response.data:
+             return jsonify({'error': 'Kayıt bulunamadı'}), 404
+             
+        record = response.data[0]
         format_type = request.args.get('format', 'txt')
         
-        safe_name = getattr(record, 'video_id', '') or f"upload_{record.id}"
+        safe_name = record.get('video_id', '') or f"upload_{record['id']}"
 
         if format_type == 'md':
             filename = f"transcript_{safe_name}.md"
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(f"# Transkript\n\n")
-                if getattr(record, 'url', ''):
-                    f.write(f"**URL:** {record.url}\n\n")
-                f.write(f"**Tarih:** {record.created}\n\n")
+                if record.get('url'):
+                    f.write(f"**URL:** {record['url']}\n\n")
+                f.write(f"**Tarih:** {record['created']}\n\n")
                 f.write("---\n\n")
                 f.write("## Metin\n\n")
-                f.write(record.full_transcript.replace('\n', '\n\n'))
-                if record.summary:
+                f.write(record['full_transcript'].replace('\n', '\n\n'))
+                if record.get('summary'):
                     f.write("\n\n---\n\n")
                     f.write("## AI Özeti\n\n")
-                    f.write(record.summary)
+                    f.write(record['summary'])
         else:
             filename = f"transcript_{safe_name}.txt"
             with open(filename, 'w', encoding='utf-8') as f:
-                if getattr(record, 'url', ''):
-                    f.write(f"URL: {record.url}\n")
-                f.write(f"Tarih: {record.created}\n")
+                if record.get('url'):
+                    f.write(f"URL: {record['url']}\n")
+                f.write(f"Tarih: {record['created']}\n")
                 f.write("\n" + "="*50 + "\n\n")
-                f.write(record.full_transcript)
-                if record.summary:
+                f.write(record['full_transcript'])
+                if record.get('summary'):
                     f.write("\n\n" + "="*50 + "\n")
                     f.write("ÖZET:\n\n")
-                    f.write(record.summary)
+                    f.write(record['summary'])
         
         return send_file(filename, as_attachment=True)
     except Exception as e:

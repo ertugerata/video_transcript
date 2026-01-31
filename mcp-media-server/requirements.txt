@@ -1,6 +1,6 @@
 fastmcp[cli]
 openai-whisper
 yt-dlp
-pocketbase
+supabase
 torch
 requests
