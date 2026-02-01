@@ -1,16 +1,19 @@
 # YouTube & Ses Dosyası Özetleyici (Video Transcript & Summarizer)
 
-Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çıkaran, Google Gemini API kullanarak özetleyen ve tüm verileri **Supabase** bulut veritabanında saklayan gelişmiş bir Flask web uygulamasıdır. Ayrıca medya formatı dönüştürme araçları da sunar.
+Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çıkaran, Google Gemini API kullanarak özetleyen ve tüm verileri **Supabase** bulut veritabanında saklayan gelişmiş bir Flask web uygulamasıdır.
+
+Uygulama **Client-Server** mimarisi ile çalışacak şekilde tasarlanmıştır:
+*   **Web İstemcisi (`app.py`):** Kullanıcı arayüzünü sunar, veritabanı ile konuşur ve hafif işlemleri yapar.
+*   **MCP Medya Sunucusu (`mcp-media-server`):** Ağır medya işleme, YouTube indirme ve Whisper model işlemlerini yöneten bileşendir.
 
 ## Özellikler
 
-*   **YouTube Desteği:** Video linki (standart, short veya embed) üzerinden transkript çekme (Türkçe, İngilizce veya Otomatik).
-*   **Yerel Ses Dosyası Desteği:** Bilgisayarınızdan ses dosyası yükleyerek **yerel Whisper modelleri** ile transkript oluşturma.
-    *   Seçilebilir Whisper model boyutları (tiny, base, small, medium, large).
+*   **YouTube Desteği:** Video linki (standart, short veya embed) üzerinden transkript çekme. (Uzaktaki MCP sunucusu veya yerel modüller kullanılır).
 *   **Yapay Zeka Özeti:** Google Gemini (Pro/Flash) modelleri ile içeriklerin otomatik özetini çıkarma.
-*   **Medya Dönüştürücü:** Ses ve video dosyalarını farklı formatlara (örn. mp3) dönüştürme aracı.
-*   **Veritabanı Kaydı:** Tüm aramalar ve çeviriler **Supabase** veritabanında saklanır. Aynı video tekrar sorgulandığında veriler veritabanından getirilir (Önbellekleme).
-*   **Dışa Aktarma:** Transkriptleri ve özetleri `.txt` veya `.md` (Markdown) formatında indirme imkanı.
+*   **Medya Dönüştürücü:** Ses ve video dosyalarını farklı formatlara (örn. mp3) dönüştürme aracı (FFmpeg gerektirir).
+*   **Veritabanı Kaydı:** Tüm aramalar ve çeviriler **Supabase** veritabanında saklanır ve önbelleklenir.
+*   **Dışa Aktarma:** Transkriptleri ve özetleri `.txt` veya `.md` formatında indirme.
+*   **Yerel Ses İşleme (Opsiyonel):** Gerekli ek kütüphaneler yüklendiğinde, yerel Whisper modelleri ile dosya yükleyip transkript alabilirsiniz.
 
 ## Gereksinimler
 
@@ -19,8 +22,8 @@ Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çı
     *   *Ubuntu/Debian:* `sudo apt install ffmpeg`
     *   *macOS:* `brew install ffmpeg`
     *   *Windows:* [FFmpeg indir](https://ffmpeg.org/download.html) ve PATH'e ekle.
-*   **Supabase Hesabı:** Veritabanı hizmeti için.
-*   **Google Gemini API Anahtarı:** Özetleme özelliği için.
+*   **Supabase Hesabı**
+*   **Google Gemini API Anahtarı**
 
 ## Kurulum
 
@@ -30,10 +33,16 @@ Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çı
     cd <repo-folder>
     ```
 
-2.  **Gerekli Python paketlerini yükleyin:**
+2.  **Temel İstemci Paketlerini Yükleyin:**
+    Web arayüzünü çalıştırmak için gerekli hafif paketleri yükler.
     ```bash
     pip install -r requirements.txt
     ```
+
+    > **Önemli Not:** Eğer **yerel ses dosyası işleme (Whisper)** özelliğini kullanmak veya YouTube işlemlerini tamamen yerel makinenizde yapmak istiyorsanız, sunucu tarafı bağımlılıklarını da yüklemelisiniz:
+    > ```bash
+    > pip install -r mcp-media-server/requirements.txt
+    > ```
 
 3.  **Çevresel değişkenleri ayarlayın:**
     Proje ana dizininde `.env` dosyası oluşturun ve aşağıdaki anahtarları ekleyin:
@@ -45,7 +54,7 @@ Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çı
 
 4.  **Supabase Veritabanı Kurulumu:**
 
-    Supabase panelinizde "SQL Editor" kısmına giderek aşağıdaki sorguyu çalıştırın ve `transcripts` tablosunu oluşturun:
+    Supabase panelinizde "SQL Editor" kısmına giderek aşağıdaki sorguyu çalıştırın:
 
     ```sql
     create table transcripts (
@@ -59,7 +68,6 @@ Bu proje, YouTube videolarından ve yüklenen ses dosyalarından transkript çı
       created timestamptz default now()
     );
     ```
-    *(İsteğe bağlı)* Storage bucket kullanacaksanız bucket ayarlarını da yapmanız gerekebilir, ancak şu an temel metin saklama özelliği aktiftir.
 
 ## Kullanım
 
@@ -72,26 +80,22 @@ python app.py
 Tarayıcınızda **`http://localhost:5000`** adresine gidin.
 
 ### 1. YouTube Transkripti & Özeti
-*   YouTube URL'sini ilgili kutuya yapıştırın.
-*   "Transkript Getir" butonuna basın.
-*   "Özet Oluştur" seçeneği işaretliyse, transkript çekildikten sonra Gemini ile özet oluşturulur.
+*   YouTube URL'sini yapıştırın ve "Transkript Getir" butonuna basın.
+*   Uygulama, işlemi gerçekleştirmek için tanımlı MCP sunucusuyla (veya yerel modüllerle) iletişim kurar.
 
 ### 2. Ses Dosyası Yükleme (Whisper)
-*   "Dosya Yükle" sekmesine geçin.
-*   Bir ses dosyası seçin.
-*   Kullanılacak **Whisper Model Boyutunu** seçin. (İlk kullanımda model indirilir).
-*   İşlem tamamlandığında metin ve özet ekranda görünür.
+*   **Dikkat:** Bu özellik için `openai-whisper` kütüphanesinin yüklü olması gerekir (bkz. Kurulum adım 2).
+*   "Dosya Yükle" sekmesinden ses dosyası seçin ve model boyutunu belirleyin.
 
 ### 3. Medya Dönüştürücü
-*   Dosyalarınızı farklı formatlara dönüştürmek için ilgili menüyü kullanın.
+*   FFmpeg kurulu olduğu sürece dosyalarınızı mp3 vb. formatlara dönüştürebilirsiniz.
 
 ## Proje Yapısı
 
-*   `app.py`: Flask web sunucusu ve uygulama mantığı.
-*   `mcp-media-server/src/`: Medya işleme, indirme ve veritabanı işlemlerini yürüten modüller.
-    *   `transcribe.py`: Whisper ile transkripsiyon.
-    *   `audio.py`: Ses işleme ve dönüştürme.
-    *   `server.py`: FastMCP sunucusu ve iş akışları.
-    *   `db.py`: Supabase veritabanı işlemleri.
-*   `requirements.txt`: Proje bağımlılıkları.
-*   `templates/`: HTML arayüz dosyaları.
+*   `app.py`: Ana web uygulaması ve MCP istemcisi.
+*   `mcp_client_utils.py`: Uzaktaki MCP sunucusuyla iletişim kuran istemci modülü.
+*   `requirements.txt`: İstemci uygulaması için gerekli temel bağımlılıklar.
+*   `mcp-media-server/`:
+    *   `src/server.py`: MCP sunucu uygulaması.
+    *   `src/transcribe.py`: Whisper transkripsiyon modülü.
+    *   `requirements.txt`: Sunucu ve ağır işlemler için gerekli bağımlılıklar.
