@@ -4,8 +4,8 @@ services:
     volumes:
       - .:/app
     environment:
-      - SUPABASE_URL
-      - SUPABASE_KEY
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
       - OLLAMA_URL=http://llm:11434
     depends_on:
       - llm
