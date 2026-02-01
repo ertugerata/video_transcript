@@ -19,6 +19,13 @@ import sys
 # Add mcp-media-server/src to python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'mcp-media-server', 'src'))
 
+# MCP Client import
+try:
+    from mcp_client_utils import call_process_youtube_workflow
+except ImportError as e:
+    print(f"MCP Client Utils import failed: {e}")
+    def call_process_youtube_workflow(url): return f"MCP Client modülü yüklenemedi: {e}"
+
 try:
     from transcribe import transcribe_local
     from audio import convert_media_core
@@ -236,6 +243,8 @@ def process_youtube_local():
     """
     YouTube videosunu indirir, parçalar ve yerel Whisper ile işler.
     (local_media_server.process_youtube_workflow kullanır)
+
+    GÜNCELLEME: Artık uzaktaki MCP sunucusunu (ertugrulerata-mcp-media-server.hf.space) kullanıyor.
     """
     try:
         data = request.json
@@ -243,12 +252,11 @@ def process_youtube_local():
             return jsonify({'error': 'URL gerekli'}), 400
 
         url = data['url']
-        print(f"\n=== YEREL YOUTUBE İŞLEME İSTEĞİ ===")
+        print(f"\n=== YEREL YOUTUBE İŞLEME İSTEĞİ (MCP REMOTE) ===")
         print(f"URL: {url}")
 
-        # Bu işlem uzun sürebilir, şimdilik bloklayarak çalıştırıyoruz.
-        # İdealde background worker kullanılmalı.
-        report = process_youtube_workflow(url)
+        # Uzaktaki MCP sunucusuna istek gönder
+        report = call_process_youtube_workflow(url)
 
         return jsonify({
             'success': True,
