@@ -32,7 +32,6 @@ except ImportError as e:
 
 app = Flask(__name__)
 
-# PocketBase bağlantısı
 # Supabase bağlantısı
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
@@ -414,7 +413,7 @@ def handle_youtube_url(data):
         if sum_error:
             summary = f"Özet oluşturulamadı: {sum_error}"
 
-    data_pb = {
+    data = {
         "video_id": video_id,
         "url": url,
         "full_transcript": transcript_data['full_text'],
@@ -423,7 +422,7 @@ def handle_youtube_url(data):
         "summary": summary or "",
         "created": datetime.now().isoformat()
     }
-    record_id, save_error = save_to_supabase(data_pb)
+    record_id, save_error = save_to_supabase(data)
 
     transcript_text = transcript_data['full_text'] if include_timestamps else transcript_data['simple_text']
 

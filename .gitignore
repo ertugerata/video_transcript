@@ -1,8 +1,6 @@
 __pycache__/
 *.pyc
 .env
-pb_data/
-pocketbase
 venv/
 .venv/
 .DS_Store
