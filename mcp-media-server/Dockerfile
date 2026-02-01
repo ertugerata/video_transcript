@@ -18,4 +18,4 @@ RUN mkdir -p temp_downloads
 
 COPY . .
 
-CMD ["python", "src/server.py"]
+CMD ["fastmcp", "run", "src/server.py", "--transport", "sse", "--port", "7860", "--host", "0.0.0.0"]
