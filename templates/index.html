@@ -3,455 +3,710 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube & Ses Transkript Alıcı</title>
+    <title>AI Medya Asistanı</title>
     <style>
+        :root {
+            --bg-color: #ffffff;
+            --surface-color: #f0f4f9;
+            --primary-color: #0b57d0;
+            --text-color: #1f1f1f;
+            --secondary-text: #444746;
+            --border-radius: 24px;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
-        .container {
+        /* Header */
+        header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 22px;
+            color: var(--secondary-text);
+            font-weight: 500;
+        }
+
+        /* Main Chat Area */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Changed from center to allow scrolling */
+            overflow-y: auto;
+            padding: 20px;
+            width: 100%;
             max-width: 900px;
             margin: 0 auto;
+            position: relative;
+        }
+
+        .welcome-message {
+            text-align: center;
+            margin-bottom: 40px;
+            margin-top: auto; /* Push to bottom initially */
+            margin-bottom: auto; /* Push to top initially */
+            transition: all 0.3s ease;
+        }
+
+        .welcome-message h2 {
+            font-size: 56px;
+            background: linear-gradient(90deg, #4285F4, #9B72CB, #D96570);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .welcome-message p {
+            font-size: 24px;
+            color: #c4c7c5;
+        }
+
+        /* Input Bar Container - Fixed at bottom or floating */
+        .input-container-wrapper {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .input-bar {
+            background-color: var(--surface-color);
+            border-radius: 36px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: box-shadow 0.2s;
+        }
+
+        .input-bar:focus-within {
+            background-color: #e9eef6;
+            box-shadow: 0 0 0 1px transparent; /* Placeholder for focus state */
+        }
+
+        /* Icons/Buttons */
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--secondary-text);
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .icon-btn:hover {
+            background-color: rgba(0,0,0,0.05);
+            color: var(--text-color);
+        }
+
+        .icon-btn.active {
+            background-color: #d3e3fd;
+            color: #041e49;
+        }
+
+        .icon-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        /* Main Input Field */
+        .text-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            color: var(--text-color);
+            outline: none;
+            padding: 8px;
+            min-height: 24px;
+        }
+
+        .text-input::placeholder {
+            color: var(--secondary-text);
+        }
+
+        /* Menus / Popovers */
+        .popover-menu {
+            position: absolute;
+            bottom: 60px; /* Above the bar */
+            left: 0;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 8px;
+            display: none;
+            flex-direction: column;
+            min-width: 200px;
+            z-index: 200;
+        }
+
+        .popover-menu.show {
+            display: flex;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .menu-item:hover {
+            background-color: var(--surface-color);
+        }
+
+        .menu-item svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--secondary-text);
+        }
+
+        /* Settings Popover */
+        .settings-popover {
+            position: absolute;
+            bottom: 60px;
+            left: 50px; /* Offset from left */
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 16px;
+            display: none;
+            min-width: 250px;
+        }
+
+        .settings-popover.show {
+            display: block;
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+
+        /* Result Area (Chat Bubbles) */
+        .chat-history {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-bottom: 100px; /* Space for input bar */
+            display: none; /* Hidden initially */
+        }
+
+        .message {
+            display: flex;
+            gap: 16px;
+            max-width: 100%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .avatar.user {
+            background: #c2e7ff;
+            color: #001d35;
+        }
+
+        .avatar.ai {
+            background: linear-gradient(135deg, #4285F4, #D96570);
+            color: white;
+        }
+
+        .msg-content {
+            flex: 1;
+            line-height: 1.6;
+            font-size: 16px;
+            color: var(--text-color);
+        }
+
+        .msg-content h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
         }
 
         .card {
             background: white;
-            border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            margin-bottom: 24px;
-        }
-
-        h1 {
-            color: #1a202c;
-            font-size: 32px;
-            margin-bottom: 8px;
-        }
-
-        .subtitle {
-            color: #718096;
-            margin-bottom: 32px;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 24px;
-            border-bottom: 2px solid #e2e8f0;
-            flex-wrap: wrap;
-        }
-
-        .tab {
-            padding: 12px 24px;
-            font-weight: 600;
-            color: #718096;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.3s;
-        }
-
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-
-        .tab:hover:not(.active) {
-            color: #4a5568;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 8px;
-        }
-
-        input[type="text"], select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        input[type="text"]:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        input[type="file"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px dashed #e2e8f0;
-            border-radius: 8px;
-            cursor: pointer;
-            background: #f8fafc;
-            transition: all 0.3s;
-        }
-
-        input[type="file"]:hover {
-            border-color: #667eea;
-            background: #f1f5f9;
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .alert {
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
             padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .alert-error {
-            background: #fed7d7;
-            color: #c53030;
-            border: 1px solid #fc8181;
-        }
-
-        .alert-success {
-            background: #c6f6d5;
-            color: #22543d;
-            border: 1px solid #68d391;
-        }
-
-        .alert-info {
-            background: #bee3f8;
-            color: #2c5282;
-            border: 1px solid #90cdf4;
-        }
-
-        .result-box {
-            background: #f7fafc;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            max-height: 500px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .result-box h3 {
-            color: #2d3748;
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .result-text {
-            color: #4a5568;
-            line-height: 1.8;
-            white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            margin-top: 10px;
         }
 
         .btn-small {
             padding: 6px 12px;
-            font-size: 14px;
-            background: #667eea;
-            color: white;
+            background: #e9eef6;
+            color: var(--primary-color);
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
+            font-size: 13px;
             cursor: pointer;
-            white-space: nowrap;
+            margin-right: 8px;
+            font-weight: 500;
         }
 
         .btn-small:hover {
-            background: #5568d3;
+            background: #d3e3fd;
         }
 
-        .btn-small.secondary {
-            background: #48bb78;
-        }
-
-        .btn-small.secondary:hover {
-            background: #38a169;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
+        /* Convert Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
             display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
         }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .history-item {
+        .modal {
             background: white;
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal h3 { margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; }
+        .form-group select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
         }
 
-        .history-item:hover {
-            border-color: #667eea;
-            transform: translateX(4px);
-        }
-
-        .history-date {
-            color: #718096;
+        /* File Chip */
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #e9eef6;
+            padding: 4px 12px;
+            border-radius: 16px;
             font-size: 14px;
+            color: var(--text-color);
+            margin-right: 8px;
         }
 
-        .info-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            margin-top: 8px;
+        .file-chip .remove {
+            margin-left: 8px;
+            cursor: pointer;
+            color: #666;
         }
 
-        .badge-language {
-            background: #e6fffa;
-            color: #234e52;
-        }
-
-        .badge-summary {
-            background: #fef5e7;
-            color: #7d6608;
-        }
-
-        .stat-row {
-            display: flex;
-            gap: 12px;
-            margin-top: 12px;
-            font-size: 14px;
-            color: #718096;
-        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>🎥 Medya Merkezi</h1>
-            <p class="subtitle">YouTube transkripti, Ses-Metin dönüşümü ve Format çevirici</p>
 
-            <div id="alert" class="alert"></div>
+    <header>
+        <h1>Medya Asistanı</h1>
+        <div style="font-size: 14px; color: #666;" id="mcpStatusIndicator">MCP: Kapalı</div>
+    </header>
 
-            <div class="tabs">
-                <div class="tab active" data-tab="url" onclick="switchTab('url')">YouTube URL</div>
-                <div class="tab" data-tab="file" onclick="switchTab('file')">Ses Dosyası Yükle</div>
-                <div class="tab" data-tab="convert" onclick="switchTab('convert')">Format Dönüştürücü</div>
-            </div>
-            
-            <div id="urlSection">
-                <div class="form-group">
-                    <label for="url">YouTube Video URL'si</label>
-                    <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=...">
-                </div>
-                <div class="checkbox-group" id="useCacheContainer">
-                    <input type="checkbox" id="useCache" checked>
-                    <label for="useCache" style="margin: 0">Önbelleği kullan (varsa)</label>
-                </div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="useLocalWorkflow">
-                    <label for="useLocalWorkflow" style="margin: 0">Yerel Model Kullan (İndir ve Whisper ile işle)</label>
-                </div>
-            </div>
+    <main id="mainArea">
 
-            <div id="fileSection" style="display: none;">
-                <div class="form-group">
-                    <label for="audioFile">Ses veya Video Dosyası Seçin</label>
-                    <input type="file" id="audioFile" accept="audio/*,video/*">
-                    <p style="font-size: 13px; color: #718096; margin-top: 8px;">
-                        Desteklenen formatlar: MP3, WAV, M4A, MP4, MPEG, OGG.
-                    </p>
-                </div>
-                <div class="form-group">
-                    <label for="modelSize">Whisper Model Boyutu</label>
-                    <select id="modelSize">
-                        <option value="tiny">Tiny (Çok Hızlı, Düşük Kalite)</option>
-                        <option value="base" selected>Base (Hızlı, Orta Kalite)</option>
-                        <option value="small">Small (Dengeli)</option>
-                        <option value="medium">Medium (Yavaş, İyi Kalite)</option>
-                        <option value="large">Large (Çok Yavaş, En İyi Kalite)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div id="convertSection" style="display: none;">
-                <div class="form-group">
-                    <label for="convertFile">Dönüştürülecek Dosya</label>
-                    <input type="file" id="convertFile" accept="audio/*,video/*">
-                </div>
-                <div class="form-group">
-                    <label for="targetFormat">Hedef Format</label>
-                    <select id="targetFormat">
-                        <option value="mp3" selected>MP3 (Ses)</option>
-                        <option value="wav">WAV (Ses)</option>
-                        <option value="m4a">M4A (Ses)</option>
-                        <option value="ogg">OGG (Ses)</option>
-                        <option value="mp4">MP4 (Video)</option>
-                        <option value="mkv">MKV (Video)</option>
-                    </select>
-                </div>
-                <button class="btn" onclick="convertMedia()">Dönüştür ve İndir</button>
-            </div>
-
-            <div id="transcriptOptions">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="includeTimestamps" checked>
-                    <label for="includeTimestamps" style="margin: 0">Zaman damgalarını dahil et ([00:00] formatında)</label>
-                </div>
-
-                <div class="checkbox-group">
-                    <input type="checkbox" id="generateSummary">
-                    <label for="generateSummary" style="margin: 0">Gemini ile özet oluştur (opsiyonel)</label>
-                </div>
-
-                <button id="mainBtn" class="btn" onclick="getTranscript()">Transkripti Oluştur</button>
-            </div>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p style="margin-top: 12px; color: #4a5568;">İşlem yapılıyor... Lütfen bekleyin.</p>
-            </div>
-
-            <div id="transcriptBox" class="result-box">
-                <h3>
-                    <span>📝 Transkript (Tam Metin)</span>
-                    <div class="btn-group">
-                        <button class="btn-small" onclick="copyToClipboard('transcript')">📋 Kopyala</button>
-                        <button class="btn-small secondary" onclick="downloadTranscript('txt')">📄 TXT İndir</button>
-                        <button class="btn-small secondary" onclick="downloadTranscript('md')">📑 Markdown İndir</button>
-                    </div>
-                </h3>
-                <div class="stat-row">
-                    <span id="transcriptStats"></span>
-                </div>
-                <div id="transcript" class="result-text"></div>
-            </div>
-
-            <div id="summaryBox" class="result-box">
-                <h3>
-                    <span>🤖 AI Özeti</span>
-                    <button class="btn-small" onclick="copyToClipboard('summary')">📋 Kopyala</button>
-                </h3>
-                <div id="summary" class="result-text" style="font-family: inherit;"></div>
-            </div>
+        <div class="welcome-message" id="welcomeMsg">
+            <h2>Merhaba</h2>
+            <p>Video transkripti, özetleme veya format dönüştürme yapabilirim.</p>
         </div>
 
-        <div class="card">
-            <h2 style="margin-bottom: 20px;">📚 Geçmiş Transkriptler</h2>
-            <div id="history"></div>
+        <div class="chat-history" id="chatHistory">
+            <!-- Messages will be added here -->
+        </div>
+
+    </main>
+
+    <!-- Fixed Input Area at Bottom (or centered initially) -->
+    <div style="display: flex; justify-content: center; width: 100%; padding: 0 20px 20px 20px;">
+        <div class="input-container-wrapper">
+            
+            <!-- Plus Menu Popover -->
+            <div class="popover-menu" id="plusMenu">
+                <div class="menu-item" onclick="setMode('url')">
+                    <svg viewBox="0 0 24 24"><path d="M19.5 12c0-.23-.01-.45-.03-.68l1.86-1.41c.17-.12.21-.37.1-.56L20.1 7.5c-.11-.19-.36-.25-.56-.17l-2.19.88c-.46-.35-.95-.65-1.48-.89l-.33-2.33c-.03-.22-.22-.39-.44-.39h-2.1c-.22 0-.41.17-.44.39l-.33 2.33c-.53.24-1.02.54-1.48.89l-2.19-.88c-.2-.08-.44-.01-.56.17l-1.33 1.84c-.11.19-.06.44.1.56l1.86 1.41c-.02.23-.03.45-.03.68s.01.45.03.68l-1.86 1.41c-.17.12-.21.37-.1.56l1.33 1.84c.11.19.36.25.56.17l2.19-.88c.46.35.95.65 1.48.89l.33 2.33c.03.22.22.39.44.39h2.1c.22 0 .41-.17.44-.39l.33-2.33c.53-.24 1.02-.54 1.48-.89l2.19.88c.2.08.44.01.56-.17l1.33-1.84c.11-.19.06-.44-.1-.56l-1.86-1.41c.02-.23.03-.45.03-.68z"/><path d="M0 0h24v24H0z" fill="none"/></svg>
+                    YouTube URL Gir
+                </div>
+                <div class="menu-item" onclick="triggerFileUpload()">
+                    <svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+                    Dosya Yükle (Ses/Video)
+                </div>
+                <div class="menu-item" onclick="openConvertModal()">
+                    <svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/></svg>
+                    Format Dönüştürücü
+                </div>
+            </div>
+
+            <!-- Settings Popover -->
+            <div class="settings-popover" id="settingsPopover">
+                <div class="setting-row">
+                    <span style="font-size: 14px;">MCP Sunucusu Kullan</span>
+                    <label class="switch">
+                        <input type="checkbox" id="mcpToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div style="font-size: 12px; color: #666; margin-top: 8px;">
+                    Açık: Uzak sunucuyu kullanır (Ağır işlemler).<br>
+                    Kapalı: Standart YouTube API (Hızlı).
+                </div>
+            </div>
+
+            <div class="input-bar">
+                <button class="icon-btn" id="plusBtn" onclick="toggleMenu('plusMenu')">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/><path d="M0 0h24v24H0z" fill="none"/></svg>
+                </button>
+
+                <button class="icon-btn" id="settingsBtn" onclick="toggleMenu('settingsPopover')">
+                    <svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                </button>
+
+                <div id="fileChipArea" style="display:none;"></div>
+
+                <input type="text" class="text-input" id="mainInput" placeholder="YouTube linki girin veya dosya seçin..." autocomplete="off">
+
+                <button class="icon-btn" onclick="handleSend()" style="background: #0b57d0; color: white;">
+                    <svg viewBox="0 0 24 24" style="fill: white;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/><path d="M0 0h24v24H0z" fill="none"/></svg>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Hidden Inputs -->
+    <input type="file" id="hiddenFileInput" style="display: none;" accept="audio/*,video/*" onchange="handleFileSelect(this)">
+    <input type="file" id="convertFileInput" style="display: none;" accept="audio/*,video/*">
+
+    <!-- Convert Modal -->
+    <div class="modal-overlay" id="convertModal">
+        <div class="modal">
+            <h3>Format Dönüştürücü</h3>
+            <div class="form-group">
+                <label>Dosya Seç</label>
+                <input type="file" id="modalFile" style="width: 100%; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
+            </div>
+            <div class="form-group">
+                <label>Hedef Format</label>
+                <select id="targetFormat">
+                    <option value="mp3">MP3 (Ses)</option>
+                    <option value="wav">WAV (Ses)</option>
+                    <option value="m4a">M4A (Ses)</option>
+                    <option value="mp4">MP4 (Video)</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary" onclick="processConversion()" style="flex: 1;">Dönüştür</button>
+                <button class="btn-primary" onclick="closeConvertModal()" style="background: #ccc; color: #333; flex: 1;">İptal</button>
+            </div>
         </div>
     </div>
 
     <script>
-        let currentRecordId = null;
-        let currentTranscript = '';
         let currentMode = 'url';
+        let selectedFile = null;
 
-        function switchTab(mode) {
+        // UI Helpers
+        function toggleMenu(id) {
+            const menu = document.getElementById(id);
+            // Hide others
+            ['plusMenu', 'settingsPopover'].forEach(mid => {
+                if (mid !== id) document.getElementById(mid).classList.remove('show');
+            });
+            menu.classList.toggle('show');
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.input-bar') && !e.target.closest('.popover-menu') && !e.target.closest('.settings-popover')) {
+                document.querySelectorAll('.popover-menu, .settings-popover').forEach(el => el.classList.remove('show'));
+            }
+        });
+
+        // Mode Switching
+        function setMode(mode) {
             currentMode = mode;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.tab[data-tab="${mode}"]`).classList.add('active');
+            const input = document.getElementById('mainInput');
+            const chip = document.getElementById('fileChipArea');
 
-            const sections = ['urlSection', 'fileSection', 'convertSection'];
-            sections.forEach(s => document.getElementById(s).style.display = 'none');
+            document.querySelectorAll('.popover-menu').forEach(el => el.classList.remove('show'));
 
-            document.getElementById(`${mode}Section`).style.display = 'block';
-
-            if (mode === 'convert') {
-                document.getElementById('transcriptOptions').style.display = 'none';
-                document.getElementById('transcriptBox').style.display = 'none';
-                document.getElementById('summaryBox').style.display = 'none';
-            } else {
-                document.getElementById('transcriptOptions').style.display = 'block';
+            if (mode === 'url') {
+                selectedFile = null;
+                chip.style.display = 'none';
+                input.style.display = 'block';
+                input.placeholder = "YouTube linki yapıştırın...";
+                input.value = '';
+                input.focus();
             }
         }
 
-        function showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            alert.textContent = message;
-            alert.className = `alert alert-${type}`;
-            alert.style.display = 'block';
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 5000);
+        function triggerFileUpload() {
+            document.getElementById('hiddenFileInput').click();
+            document.querySelectorAll('.popover-menu').forEach(el => el.classList.remove('show'));
         }
 
-        async function convertMedia() {
-            const fileInput = document.getElementById('convertFile');
+        function handleFileSelect(input) {
+            if (input.files.length > 0) {
+                selectedFile = input.files[0];
+                currentMode = 'file';
+
+                const chip = document.getElementById('fileChipArea');
+                const mainInput = document.getElementById('mainInput');
+
+                chip.innerHTML = `
+                    <div class="file-chip">
+                        📄 ${selectedFile.name}
+                        <span class="remove" onclick="setMode('url')">×</span>
+                    </div>
+                `;
+                chip.style.display = 'flex';
+                mainInput.style.display = 'none';
+            }
+        }
+
+        // MCP Settings
+        const mcpToggle = document.getElementById('mcpToggle');
+        mcpToggle.addEventListener('change', (e) => {
+            const status = document.getElementById('mcpStatusIndicator');
+            status.textContent = e.target.checked ? "MCP: Açık" : "MCP: Kapalı";
+            status.style.color = e.target.checked ? "#0b57d0" : "#666";
+        });
+
+        // Send Logic
+        async function handleSend() {
+            // Add Loading Message
+            addMessage('user', selectedFile ? `Dosya: ${selectedFile.name}` : document.getElementById('mainInput').value);
+
+            const loadingId = addMessage('ai', 'İşleniyor... <span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid #ccc;border-top-color:#0b57d0;border-radius:50%;animation:spin 1s linear infinite;"></span>');
+
+            // Hide Welcome
+            document.getElementById('welcomeMsg').style.display = 'none';
+            document.getElementById('chatHistory').style.display = 'flex';
+            document.getElementById('mainArea').classList.add('active');
+
+            try {
+                let response;
+
+                if (currentMode === 'url') {
+                    const url = document.getElementById('mainInput').value.trim();
+                    if (!url) throw new Error("Lütfen bir URL girin.");
+
+                    const useMcp = document.getElementById('mcpToggle').checked;
+
+                    if (useMcp) {
+                        response = await fetch('/api/process_youtube_local', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ url: url })
+                        });
+                    } else {
+                        // Standard API
+                        response = await fetch('/api/transcript', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                url: url,
+                                use_cache: true,
+                                generate_summary: true, // Default to true for chat exp
+                                include_timestamps: true
+                            })
+                        });
+                    }
+                } else if (currentMode === 'file') {
+                    if (!selectedFile) throw new Error("Dosya seçilmedi.");
+
+                    const formData = new FormData();
+                    formData.append('audio_file', selectedFile);
+                    formData.append('generate_summary', 'true');
+                    formData.append('model_size', 'base');
+
+                    response = await fetch('/api/transcript', {
+                        method: 'POST',
+                        body: formData
+                    });
+                }
+
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                // Update Loading Message with Result
+                const container = document.getElementById(loadingId);
+
+                let content = '';
+
+                // If MCP Report (string)
+                if (data.report) {
+                    content = `<div style="white-space: pre-wrap;">${data.report}</div>`;
+                }
+                // If Standard API
+                else {
+                    if (data.summary) {
+                        content += `<h3>🤖 Özet</h3><p>${data.summary}</p><br>`;
+                    }
+                    content += `<h3>📝 Transkript</h3><div style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 8px; font-size: 14px; white-space: pre-wrap;">${data.transcript}</div>`;
+
+                    if (data.record_id) {
+                         content += `
+                         <div style="margin-top: 10px;">
+                            <button class="btn-small" onclick="window.location.href='/api/export/${data.record_id}?format=txt'">TXT İndir</button>
+                            <button class="btn-small" onclick="window.location.href='/api/export/${data.record_id}?format=md'">MD İndir</button>
+                         </div>`;
+                    }
+                }
+                
+                container.innerHTML = content;
+
+                // Reset Inputs
+                setMode('url');
+                document.getElementById('mainInput').value = '';
+
+            } catch (err) {
+                const container = document.getElementById(loadingId);
+                container.innerHTML = `<span style="color: red;">Hata: ${err.message}</span>`;
+            }
+        }
+
+        function addMessage(role, html) {
+            const history = document.getElementById('chatHistory');
+            const id = 'msg-' + Date.now();
+
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `
+                <div class="avatar ${role}">
+                    ${role === 'user' ? '👤' : '✨'}
+                </div>
+                <div class="msg-content" id="${id}">
+                    ${html}
+                </div>
+            `;
+
+            history.appendChild(div);
+            // Scroll to bottom
+            const main = document.getElementById('mainArea');
+            main.scrollTo(0, main.scrollHeight);
+
+            return id;
+        }
+
+        // Convert Modal
+        function openConvertModal() {
+            document.getElementById('convertModal').style.display = 'flex';
+            document.querySelectorAll('.popover-menu').forEach(el => el.classList.remove('show'));
+        }
+        function closeConvertModal() {
+            document.getElementById('convertModal').style.display = 'none';
+        }
+
+        async function processConversion() {
+            const fileInput = document.getElementById('modalFile');
             const format = document.getElementById('targetFormat').value;
 
             if (fileInput.files.length === 0) {
-                showAlert('Lütfen bir dosya seçin', 'error');
+                alert("Lütfen dosya seçin");
                 return;
             }
 
@@ -459,7 +714,9 @@
             formData.append('file', fileInput.files[0]);
             formData.append('format', format);
 
-            document.getElementById('loading').style.display = 'block';
+            closeConvertModal();
+            addMessage('user', `Dönüştür: ${fileInput.files[0].name} -> ${format}`);
+            const loadingId = addMessage('ai', 'Dönüştürülüyor...');
 
             try {
                 const response = await fetch('/api/convert', {
@@ -467,224 +724,36 @@
                     body: formData
                 });
 
-                if (!response.ok) {
-                    const data = await response.json().catch(() => ({}));
-                    throw new Error(data.error || 'Dönüştürme hatası');
-                }
+                if (!response.ok) throw new Error("Dönüştürme hatası");
 
-                // Get filename from header if possible, else generate
-                const filename = `converted_${Date.now()}.${format}`;
                 const blob = await response.blob();
-
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = filename;
+                a.download = `converted.${format}`;
                 document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
 
-                showAlert('Dosya başarıyla dönüştürüldü ve indirildi! 🚀', 'success');
+                document.getElementById(loadingId).innerHTML = `✅ Başarılı! Dosya indirildi.`;
 
-            } catch (error) {
-                showAlert('Hata: ' + error.message, 'error');
-            } finally {
-                document.getElementById('loading').style.display = 'none';
+            } catch (err) {
+                document.getElementById(loadingId).innerHTML = `<span style="color:red">Hata: ${err.message}</span>`;
             }
         }
 
-        async function getTranscript() {
-            const generateSummary = document.getElementById('generateSummary').checked;
-            const includeTimestamps = document.getElementById('includeTimestamps').checked;
-
-            let body;
-            let headers = {};
-
-            if (currentMode === 'url') {
-                const url = document.getElementById('url').value.trim();
-                const useCache = document.getElementById('useCache').checked;
-                const useLocalWorkflow = document.getElementById('useLocalWorkflow').checked;
-
-                if (!url) {
-                    showAlert('Lütfen bir YouTube URL\'si girin', 'error');
-                    return;
-                }
-
-                if (useLocalWorkflow) {
-                    document.getElementById('loading').style.display = 'block';
-                    document.getElementById('transcriptBox').style.display = 'none';
-                    document.getElementById('summaryBox').style.display = 'none';
-
-                    try {
-                        const response = await fetch('/api/process_youtube_local', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ url: url })
-                        });
-
-                        const data = await response.json();
-
-                        if (data.error) {
-                            showAlert(data.error, 'error');
-                            return;
-                        }
-
-                        document.getElementById('transcript').textContent = data.report;
-                        document.getElementById('transcriptBox').style.display = 'block';
-                        document.getElementById('transcriptStats').innerHTML = '<strong>İşlem Raporu</strong>';
-
-                        showAlert('Yerel işlem tamamlandı!', 'success');
-                        loadHistory();
-
-                    } catch (error) {
-                        showAlert('Hata: ' + error.message, 'error');
-                    } finally {
-                        document.getElementById('loading').style.display = 'none';
-                    }
-                    return;
-                }
-
-                body = JSON.stringify({
-                    url: url,
-                    use_cache: useCache,
-                    generate_summary: generateSummary,
-                    include_timestamps: includeTimestamps
-                });
-                headers['Content-Type'] = 'application/json';
-
-            } else {
-                // File Mode
-                const fileInput = document.getElementById('audioFile');
-                const modelSize = document.getElementById('modelSize').value;
-
-                if (fileInput.files.length === 0) {
-                    showAlert('Lütfen bir dosya seçin', 'error');
-                    return;
-                }
-
-                const formData = new FormData();
-                formData.append('audio_file', fileInput.files[0]);
-                formData.append('generate_summary', generateSummary);
-                formData.append('include_timestamps', includeTimestamps);
-                formData.append('model_size', modelSize);
-
-                body = formData;
-            }
-
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('transcriptBox').style.display = 'none';
-            document.getElementById('summaryBox').style.display = 'none';
-
-            try {
-                const response = await fetch('/api/transcript', {
-                    method: 'POST',
-                    headers: headers,
-                    body: body
-                });
-
-                const data = await response.json();
-
-                if (data.error) {
-                    showAlert(data.error, 'error');
-                    return;
-                }
-
-                currentTranscript = data.transcript;
-                currentRecordId = data.record_id;
-
-                document.getElementById('transcript').textContent = data.transcript;
-                document.getElementById('transcriptBox').style.display = 'block';
-
-                // İstatistikler
-                const wordCount = data.transcript.split(/\s+/).length;
-                const lineCount = data.transcript.split('\n').length;
-                document.getElementById('transcriptStats').innerHTML = 
-                    `<strong>Dil:</strong> ${data.language} | <strong>Satır:</strong> ${lineCount} | <strong>Kelime:</strong> ${wordCount}`;
-
-                if (data.summary) {
-                    document.getElementById('summary').textContent = data.summary;
-                    document.getElementById('summaryBox').style.display = 'block';
-                }
-
-                const cacheMsg = data.from_cache ? ' (Önbellekten alındı ⚡)' : ' (Yeni alındı ✨)';
-                showAlert('Transkript başarıyla alındı!' + cacheMsg, 'success');
-                
-                loadHistory();
-
-            } catch (error) {
-                showAlert('Bir hata oluştu: ' + error.message, 'error');
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
-        }
-
-        function copyToClipboard(elementId) {
-            const text = document.getElementById(elementId).textContent;
-            navigator.clipboard.writeText(text);
-            showAlert('Panoya kopyalandı! ✓', 'success');
-        }
-
-        async function downloadTranscript(format) {
-            if (!currentRecordId) {
-                showAlert('İndirilecek kayıt bulunamadı', 'error');
-                return;
-            }
-            window.location.href = `/api/export/${currentRecordId}?format=${format}`;
-            showAlert(`${format.toUpperCase()} dosyası indiriliyor...`, 'info');
-        }
-
-        async function loadHistory() {
-            try {
-                const response = await fetch('/api/history');
-                const data = await response.json();
-
-                const historyDiv = document.getElementById('history');
-                historyDiv.innerHTML = '';
-
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'history-item';
-                        let title = item.url || `Ses Dosyası (ID: ${item.id})`;
-                        if (title.length > 50) title = title.substring(0, 47) + '...';
-
-                        div.innerHTML = `
-                            <div><strong>${item.url ? 'Video' : 'Dosya'}:</strong> ${title}</div>
-                            <div class="history-date">${new Date(item.created).toLocaleString('tr-TR')}</div>
-                            <div>
-                                <span class="info-badge badge-language">🌐 ${item.language}</span>
-                                ${item.has_summary ? '<span class="info-badge badge-summary">🤖 Özet mevcut</span>' : ''}
-                            </div>
-                        `;
-                        div.onclick = () => {
-                            if (item.url) {
-                                switchTab('url');
-                                document.getElementById('url').value = item.url;
-                            } else {
-                                switchTab('file');
-                                showAlert('Bu geçmiş kaydı bir dosya yüklemesidir. Tekrar yüklemek için dosya seçin.', 'info');
-                            }
-                        };
-                        historyDiv.appendChild(div);
-                    });
-                } else {
-                    historyDiv.innerHTML = '<p style="color: #718096;">Henüz kayıt yok. İlk transkripti alın! 🎬</p>';
-                }
-            } catch (error) {
-                console.error('Geçmiş yüklenemedi:', error);
-            }
-        }
-
-        // Enter tuşu ile form gönderme
-        document.getElementById('url').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                getTranscript();
-            }
+        // Enter key to send
+        document.getElementById('mainInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
         });
 
-        // Sayfa yüklendiğinde geçmişi yükle
-        window.onload = loadHistory;
+        // Spin animation
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `;
+        document.head.appendChild(styleSheet);
+
     </script>
 </body>
 </html>
