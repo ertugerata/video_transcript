@@ -9,6 +9,29 @@ from mcp.client.sse import sse_client
 MCP_SERVER_URL = "https://ertugrulerata-mcp-media-server.hf.space/sse"
 CHUNK_SIZE = 1 * 1024 * 1024  # 1MB chunks
 
+async def check_connection_async():
+    """
+    Checks if the MCP server is reachable.
+    """
+    try:
+        async with sse_client(MCP_SERVER_URL, timeout=5, sse_read_timeout=5) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                return True
+    except Exception as e:
+        print(f"MCP Connection Check Failed: {e}")
+        return False
+
+def check_connection():
+    """
+    Synchronous wrapper for connection check.
+    """
+    try:
+        return asyncio.run(check_connection_async())
+    except Exception as e:
+        print(f"MCP Connection Check Error: {e}")
+        return False
+
 async def upload_file_chunked(file_path: str, session: ClientSession) -> str:
     """
     Uploads a file in chunks using the upload_chunk tool.

@@ -44,6 +44,44 @@
             font-weight: 500;
         }
 
+        /* Connection Status */
+        .status-badge {
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 16px;
+            background: #f1f3f4;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ccc;
+        }
+
+        .status-badge.connected {
+            background: #e6f4ea;
+            color: #137333;
+        }
+
+        .status-badge.connected .status-dot {
+            background-color: #137333;
+        }
+
+        .status-badge.disconnected {
+            background: #fce8e6;
+            color: #c5221f;
+        }
+
+        .status-badge.disconnected .status-dot {
+            background-color: #c5221f;
+        }
+
         /* Main Chat Area */
         main {
             flex: 1;
@@ -403,7 +441,10 @@
 
     <header>
         <h1>Medya Asistanı</h1>
-        <div style="font-size: 14px; color: #666;" id="mcpStatusIndicator">MCP: Kapalı</div>
+        <div class="status-badge" id="mcpStatusBadge">
+            <div class="status-dot"></div>
+            <span id="mcpStatusText">Bağlanıyor...</span>
+        </div>
     </header>
 
     <main id="mainArea">
@@ -507,6 +548,36 @@
         let currentMode = 'url';
         let selectedFile = null;
 
+        // Connection Check
+        async function checkConnection() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                updateConnectionStatus(data.connected);
+            } catch (e) {
+                updateConnectionStatus(false);
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const badge = document.getElementById('mcpStatusBadge');
+            const text = document.getElementById('mcpStatusText');
+
+            if (connected) {
+                badge.className = 'status-badge connected';
+                text.textContent = 'MCP: Bağlı';
+                document.getElementById('mcpToggle').checked = true;
+            } else {
+                badge.className = 'status-badge disconnected';
+                text.textContent = 'MCP: Bağlantı Yok';
+                document.getElementById('mcpToggle').checked = false;
+            }
+        }
+
+        // Initial check and poll every 30s
+        checkConnection();
+        setInterval(checkConnection, 30000);
+
         // UI Helpers
         function toggleMenu(id) {
             const menu = document.getElementById(id);
@@ -566,13 +637,8 @@
             }
         }
 
-        // MCP Settings
+        // MCP Settings logic preserved mostly for manual override but now auto-checked
         const mcpToggle = document.getElementById('mcpToggle');
-        mcpToggle.addEventListener('change', (e) => {
-            const status = document.getElementById('mcpStatusIndicator');
-            status.textContent = e.target.checked ? "MCP: Açık" : "MCP: Kapalı";
-            status.style.color = e.target.checked ? "#0b57d0" : "#666";
-        });
 
         // Send Logic
         async function handleSend() {
