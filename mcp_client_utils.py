@@ -22,7 +22,8 @@ async def _call_transcribe_audio_async(file_path: str, model_size: str = "base")
 
     print(f"Sending file '{filename}' ({len(file_content)} bytes) to MCP server for transcription...")
 
-    async with sse_client(MCP_SERVER_URL) as (read, write):
+    # Set timeout to 1 hour (3600s) for large file uploads and long processing
+    async with sse_client(MCP_SERVER_URL, timeout=3600, sse_read_timeout=3600) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
 
@@ -44,7 +45,8 @@ async def _call_process_youtube_workflow_async(url: str):
     Connects to the remote MCP server via SSE and calls the process_youtube_workflow tool.
     """
     print(f"Connecting to MCP Server: {MCP_SERVER_URL}")
-    async with sse_client(MCP_SERVER_URL) as (read, write):
+    # Set timeout to 1 hour (3600s) for long youtube video processing
+    async with sse_client(MCP_SERVER_URL, timeout=3600, sse_read_timeout=3600) as (read, write):
         async with ClientSession(read, write) as session:
             # Initialize the connection
             await session.initialize()
