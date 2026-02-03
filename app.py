@@ -11,13 +11,10 @@ import os
 import time
 import tempfile
 import io
+import subprocess
 from dotenv import load_dotenv
 
 load_dotenv()
-
-import sys
-# Add mcp-media-server/src to python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'mcp-media-server', 'src'))
 
 # MCP Client import
 try:
@@ -27,15 +24,31 @@ except ImportError as e:
     def call_process_youtube_workflow(url): return f"MCP Client modülü yüklenemedi: {e}"
     def call_transcribe_audio(file_path, model_size="base"): return f"MCP Client modülü yüklenemedi: {e}"
 
-try:
-    # Removed transcribe_local import as per request to move everything to MCP
-    from audio import convert_media_core
-    from server import process_youtube_workflow
-except ImportError as e:
-    print(f"Import hatası (mcp-media-server): {e}")
-    # Dummy functions to prevent crash if import fails
-    def convert_media_core(*args, **kwargs): raise Exception("Modül yüklenemedi")
-    def process_youtube_workflow(*args, **kwargs): return "Modül yüklenemedi"
+def convert_media_core(input_path: str, output_format: str = "mp3") -> str:
+    """
+    FFmpeg kullanarak medya dönüşümü yapan çekirdek fonksiyon.
+    Başarılı olursa çıktı dosya yolunu döndürür, hata olursa Exception fırlatır.
+    """
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Dosya bulunamadı: {input_path}")
+
+    # Çıktı dosya adını oluştur
+    base_name = os.path.splitext(input_path)[0]
+    output_path = f"{base_name}.{output_format}"
+
+    # FFmpeg komutunu oluştur
+    command = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        output_path
+    ]
+
+    # Eğer sadece ses formatına dönüştürüyorsak -vn ekleyelim
+    if output_format in ["mp3", "wav", "m4a", "ogg"]:
+         command.insert(2, "-vn")
+
+    process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return output_path
 
 app = Flask(__name__)
 
