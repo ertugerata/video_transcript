@@ -1,6 +1,8 @@
 import os
 import shutil
 import traceback
+import base64
+import tempfile
 from fastmcp import FastMCP
 try:
     from .download import download_youtube_audio
@@ -25,6 +27,26 @@ def transcribe_local_file(file_path: str, model_size: str = "base") -> str:
     Tool wrapper for the transcribe module.
     """
     return transcribe_local(file_path, model_size)
+
+@mcp.tool()
+def transcribe_audio_base64(audio_data: str, filename: str, model_size: str = "base") -> str:
+    """
+    Base64 encoded ses verisini alır, geçici dosyaya kaydeder ve transcribe eder.
+    """
+    try:
+        # Create temp file
+        suffix = os.path.splitext(filename)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            temp.write(base64.b64decode(audio_data))
+            temp_path = temp.name
+
+        try:
+            return transcribe_local(temp_path, model_size)
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+    except Exception as e:
+        return f"Hata: {str(e)}"
 
 @mcp.tool()
 def convert_media_format(input_path: str, output_format: str = "mp3") -> str:

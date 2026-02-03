@@ -21,31 +21,33 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'mcp-media-server', 'src
 
 # MCP Client import
 try:
-    from mcp_client_utils import call_process_youtube_workflow
+    from mcp_client_utils import call_process_youtube_workflow, call_transcribe_audio
 except ImportError as e:
     print(f"MCP Client Utils import failed: {e}")
     def call_process_youtube_workflow(url): return f"MCP Client modülü yüklenemedi: {e}"
+    def call_transcribe_audio(file_path, model_size="base"): return f"MCP Client modülü yüklenemedi: {e}"
 
 try:
-    from transcribe import transcribe_local
+    # Removed transcribe_local import as per request to move everything to MCP
     from audio import convert_media_core
     from server import process_youtube_workflow
 except ImportError as e:
     print(f"Import hatası (mcp-media-server): {e}")
     # Dummy functions to prevent crash if import fails
-    def transcribe_local(*args, **kwargs): return "Modül yüklenemedi"
     def convert_media_core(*args, **kwargs): raise Exception("Modül yüklenemedi")
     def process_youtube_workflow(*args, **kwargs): return "Modül yüklenemedi"
 
 app = Flask(__name__)
 
+# Gemini API yapılandırması
+api_key = os.getenv('GEMINI_API_KEY')
+print(f"DEBUG: GEMINI_API_KEY loaded: {bool(api_key)}")
+client = genai.Client(api_key=api_key)
+
 # Supabase bağlantısı
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
-
-# Gemini API yapılandırması
-client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
 # Fallback models to try in order
 GEMINI_MODELS = [
@@ -332,10 +334,10 @@ def handle_file_upload():
             file.save(temp.name)
             temp_path = temp.name
 
-        print("Whisper (Local) ile transkript alınıyor...")
-        transcript_result = transcribe_local(temp_path, model_size=model_size)
+        print("Whisper (MCP Remote) ile transkript alınıyor...")
+        transcript_result = call_transcribe_audio(temp_path, model_size=model_size)
         
-        if transcript_result.startswith("Hata:") or transcript_result.startswith("Transkripsiyon hatası:"):
+        if transcript_result.startswith("Hata:") or transcript_result.startswith("Transkripsiyon hatası:") or transcript_result.startswith("MCP Client Error:"):
             return jsonify({'error': transcript_result}), 400
 
         transcript_text = transcript_result
