@@ -18,12 +18,13 @@ load_dotenv()
 
 # MCP Client import
 try:
-    from mcp_client_utils import call_process_youtube_workflow, call_transcribe_audio, call_convert_media
+    from mcp_client_utils import call_process_youtube_workflow, call_transcribe_audio, call_convert_media, check_connection
 except ImportError as e:
     print(f"MCP Client Utils import failed: {e}")
     def call_process_youtube_workflow(url): return f"MCP Client modülü yüklenemedi: {e}"
     def call_transcribe_audio(file_path, model_size="base"): return f"MCP Client modülü yüklenemedi: {e}"
     def call_convert_media(file_path, target_format="mp3"): return f"MCP Client modülü yüklenemedi: {e}"
+    def check_connection(): return False
 
 app = Flask(__name__)
 
@@ -198,6 +199,15 @@ def get_from_supabase(video_id):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """MCP Sunucusu bağlantı kontrolü"""
+    is_connected = check_connection()
+    return jsonify({
+        'status': 'connected' if is_connected else 'disconnected',
+        'connected': is_connected
+    })
 
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript_api():
