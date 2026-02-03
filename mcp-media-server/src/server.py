@@ -3,6 +3,7 @@ import shutil
 import traceback
 import base64
 import tempfile
+import glob
 from fastmcp import FastMCP
 try:
     from .download import download_youtube_audio
@@ -19,6 +20,118 @@ except ImportError:
 
 # Sunucuyu başlatıyoruz
 mcp = FastMCP("LocalMediaServer")
+
+# Temporary directory for uploaded chunks
+UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "mcp_uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@mcp.tool()
+def upload_chunk(upload_id: str, chunk_index: int, chunk_data: str) -> str:
+    """
+    Receives a chunk of a file and saves it to a temporary directory associated with the upload_id.
+    chunk_data should be base64 encoded.
+    """
+    try:
+        # Sanitize upload_id to prevent path traversal (simple alphanumeric check would be best, but basename is minimal)
+        safe_upload_id = os.path.basename(upload_id)
+        if not safe_upload_id:
+             return "Error: Invalid upload_id"
+
+        # Create a specific directory for this upload session
+        file_dir = os.path.join(UPLOAD_DIR, safe_upload_id)
+        os.makedirs(file_dir, exist_ok=True)
+
+        chunk_path = os.path.join(file_dir, f"{chunk_index:05d}.part")
+
+        with open(chunk_path, "wb") as f:
+            f.write(base64.b64decode(chunk_data))
+
+        return f"Chunk {chunk_index} received for {safe_upload_id}"
+    except Exception as e:
+        return f"Error receiving chunk: {str(e)}"
+
+def assemble_file(upload_id: str, filename: str) -> str:
+    """
+    Assembles chunks for the given upload_id and returns the path to the assembled file.
+    Uses filename only to determine the extension.
+    """
+    safe_upload_id = os.path.basename(upload_id)
+    file_dir = os.path.join(UPLOAD_DIR, safe_upload_id)
+
+    if not os.path.exists(file_dir):
+        raise FileNotFoundError(f"No chunks found for {safe_upload_id}")
+
+    # Get all parts and sort them
+    parts = sorted(glob.glob(os.path.join(file_dir, "*.part")))
+
+    if not parts:
+        raise FileNotFoundError(f"No parts found in {file_dir}")
+
+    # Reconstruct file extension from filename or default to .tmp
+    # Sanitize filename just in case
+    safe_filename = os.path.basename(filename)
+    _, ext = os.path.splitext(safe_filename)
+    if not ext:
+        ext = ".tmp"
+
+    # Create a temporary file for the assembled content
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp:
+        assembled_path = temp.name
+
+    with open(assembled_path, "wb") as outfile:
+        for part in parts:
+            with open(part, "rb") as infile:
+                shutil.copyfileobj(infile, outfile)
+
+    # Cleanup chunks directory
+    shutil.rmtree(file_dir)
+
+    return assembled_path
+
+@mcp.tool()
+def transcribe_uploaded_file(upload_id: str, filename: str, model_size: str = "base") -> str:
+    """
+    Assembles previously uploaded chunks for 'upload_id' and transcribes the result.
+    filename is provided to preserve the file extension.
+    """
+    assembled_path = None
+    try:
+        assembled_path = assemble_file(upload_id, filename)
+        return transcribe_local(assembled_path, model_size)
+    except Exception as e:
+        return f"Error in transcribe_uploaded_file: {str(e)}"
+    finally:
+        if assembled_path and os.path.exists(assembled_path):
+            os.unlink(assembled_path)
+
+@mcp.tool()
+def convert_uploaded_file(upload_id: str, filename: str, output_format: str = "mp3") -> str:
+    """
+    Assembles previously uploaded chunks for 'upload_id', converts it, and returns the result as base64.
+    """
+    assembled_path = None
+    output_path = None
+    try:
+        from .audio import convert_media_core
+        assembled_path = assemble_file(upload_id, filename)
+
+        # Convert
+        output_path = convert_media_core(assembled_path, output_format)
+
+        # Read result
+        with open(output_path, "rb") as f:
+            result_data = f.read()
+
+        return base64.b64encode(result_data).decode("utf-8")
+
+    except Exception as e:
+        return f"Error in convert_uploaded_file: {str(e)}"
+    finally:
+        if assembled_path and os.path.exists(assembled_path):
+            os.unlink(assembled_path)
+        if output_path and os.path.exists(output_path):
+            os.unlink(output_path)
+
 
 @mcp.tool()
 def transcribe_local_file(file_path: str, model_size: str = "base") -> str:
