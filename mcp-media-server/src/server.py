@@ -63,6 +63,40 @@ def convert_media_format(input_path: str, output_format: str = "mp3") -> str:
         return f"Hata: {str(e)}"
 
 @mcp.tool()
+def convert_media_base64(audio_data: str, filename: str, output_format: str = "mp3") -> str:
+    """
+    Base64 encoded ses verisini alır, dönüştürür ve base64 olarak geri döndürür.
+    """
+    try:
+        from .audio import convert_media_core
+        # Create temp file
+        suffix = os.path.splitext(filename)[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            temp.write(base64.b64decode(audio_data))
+            temp_path = temp.name
+
+        output_path = None
+        try:
+            # Convert
+            output_path = convert_media_core(temp_path, output_format)
+
+            # Read result
+            with open(output_path, "rb") as f:
+                result_data = f.read()
+
+            return base64.b64encode(result_data).decode("utf-8")
+
+        finally:
+            # Cleanup
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            if output_path and os.path.exists(output_path):
+                os.unlink(output_path)
+
+    except Exception as e:
+        return f"Hata: {str(e)}"
+
+@mcp.tool()
 def process_youtube_workflow(url: str) -> str:
     """
     YouTube linkini alır, indirir, gerekirse böler, veritabanına kaydeder,

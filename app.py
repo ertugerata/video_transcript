@@ -11,44 +11,19 @@ import os
 import time
 import tempfile
 import io
-import subprocess
+import base64
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # MCP Client import
 try:
-    from mcp_client_utils import call_process_youtube_workflow, call_transcribe_audio
+    from mcp_client_utils import call_process_youtube_workflow, call_transcribe_audio, call_convert_media
 except ImportError as e:
     print(f"MCP Client Utils import failed: {e}")
     def call_process_youtube_workflow(url): return f"MCP Client modülü yüklenemedi: {e}"
     def call_transcribe_audio(file_path, model_size="base"): return f"MCP Client modülü yüklenemedi: {e}"
-
-def convert_media_core(input_path: str, output_format: str = "mp3") -> str:
-    """
-    FFmpeg kullanarak medya dönüşümü yapan çekirdek fonksiyon.
-    Başarılı olursa çıktı dosya yolunu döndürür, hata olursa Exception fırlatır.
-    """
-    if not os.path.exists(input_path):
-        raise FileNotFoundError(f"Dosya bulunamadı: {input_path}")
-
-    # Çıktı dosya adını oluştur
-    base_name = os.path.splitext(input_path)[0]
-    output_path = f"{base_name}.{output_format}"
-
-    # FFmpeg komutunu oluştur
-    command = [
-        "ffmpeg", "-y",
-        "-i", input_path,
-        output_path
-    ]
-
-    # Eğer sadece ses formatına dönüştürüyorsak -vn ekleyelim
-    if output_format in ["mp3", "wav", "m4a", "ogg"]:
-         command.insert(2, "-vn")
-
-    process = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return output_path
+    def call_convert_media(file_path, target_format="mp3"): return f"MCP Client modülü yüklenemedi: {e}"
 
 app = Flask(__name__)
 
@@ -285,7 +260,6 @@ def process_youtube_local():
 @app.route('/api/convert', methods=['POST'])
 def convert_media():
     temp_path = None
-    output_path = None
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'Dosya bulunamadı'}), 400
@@ -302,16 +276,17 @@ def convert_media():
             file.save(temp.name)
             temp_path = temp.name
 
-        # Convert
-        output_path = convert_media_core(temp_path, target_format)
+        print(f"Media conversion requested (MCP Remote): {file.filename} -> {target_format}")
 
-        # Read file into memory to allow cleanup
-        with open(output_path, 'rb') as f:
-            data = f.read()
+        # Convert via MCP
+        result_base64 = call_convert_media(temp_path, target_format)
 
-        # Clean up output file immediately
-        if os.path.exists(output_path):
-            os.unlink(output_path)
+        # Check for errors
+        if result_base64.startswith("Hata:") or result_base64.startswith("MCP Client Error:"):
+            return jsonify({'error': result_base64}), 400
+
+        # Decode result
+        data = base64.b64decode(result_base64)
 
         return send_file(
             io.BytesIO(data),

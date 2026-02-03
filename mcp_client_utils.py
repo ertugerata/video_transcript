@@ -73,6 +73,50 @@ def call_process_youtube_workflow(url: str):
         traceback.print_exc()
         return f"MCP Client Error: {str(e)}"
 
+async def _call_convert_media_async(file_path: str, target_format: str = "mp3"):
+    """
+    Connects to the remote MCP server via SSE and calls the convert_media_base64 tool.
+    """
+    print(f"Connecting to MCP Server: {MCP_SERVER_URL}")
+
+    filename = os.path.basename(file_path)
+    print(f"Preparing file {filename} for conversion...")
+
+    # Read and encode file
+    with open(file_path, "rb") as f:
+        file_content = f.read()
+        audio_data = base64.b64encode(file_content).decode("utf-8")
+
+    print(f"Sending file '{filename}' ({len(file_content)} bytes) to MCP server for conversion...")
+
+    async with sse_client(MCP_SERVER_URL) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            result = await session.call_tool("convert_media_base64", arguments={
+                "audio_data": audio_data,
+                "filename": filename,
+                "output_format": target_format
+            })
+
+            final_text = ""
+            if result.content:
+                for content in result.content:
+                    if content.type == 'text':
+                        final_text += content.text
+            return final_text
+
+def call_convert_media(file_path: str, target_format: str = "mp3"):
+    """
+    Synchronous wrapper for the async MCP tool call.
+    """
+    try:
+        return asyncio.run(_call_convert_media_async(file_path, target_format))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"MCP Client Error: {str(e)}"
+
 def call_transcribe_audio(file_path: str, model_size: str = "base"):
     """
     Synchronous wrapper for the async MCP tool call.
