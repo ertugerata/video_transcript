@@ -1,62 +1,64 @@
-# MCP Media Server
+# MCP Medya Sunucusu (Media Processing Server)
 
-Bu modül, ana web uygulamasından (`app.py`) ayrılmış, ağır medya işlemlerini üstlenen sunucu tarafı bileşenidir. **Model Context Protocol (MCP)** kullanarak medya indirme, Whisper ile transkripsiyon ve format dönüştürme gibi işlemleri gerçekleştirir.
+Bu modül, ana uygulamanın (`app.py`) ağır medya işlemlerini gerçekleştirdiği arka uç servisidir. **Model Context Protocol (MCP)** standardını kullanarak, istemcilere medya işleme yetenekleri sunar.
 
-## Özellikler
+## 🚀 Özellikler
 
-*   **Whisper Entegrasyonu:** `openai-whisper` kullanarak yüksek doğrulukta yerel ses-metin dönüşümü.
-*   **YouTube İndirici:** `yt-dlp` kullanarak YouTube videolarından ses ayıklama ve meta veri çekme.
-*   **Medya İşleme:** FFmpeg kullanarak ses bölme, format dönüştürme ve süre analizi.
-*   **MCP Sunucusu:** Diğer uygulamaların (Client) bağlanıp görev gönderebileceği bir MCP arayüzü sunar (`src/server.py`).
+Sunucu aşağıdaki araçları (Tools) sağlar:
 
-## Gereksinimler
+1.  **`transcribe_audio_base64`**: Base64 formatında gelen ses dosyasını alır, yerel **Whisper** modelini kullanarak metne dönüştürür.
+2.  **`process_youtube_workflow`**: Bir YouTube URL'si alır, videoyu indirir (`yt-dlp`), sesini ayıklar ve metne dönüştürür.
+3.  **`convert_media_base64`**: Medya dosyalarını formatlar arası (mp3, wav vb.) dönüştürür.
 
-Bu modül ağır işlem yapan kütüphanelere ihtiyaç duyar:
+## 🛠️ Teknoloji Yığını
 
-*   **Python 3.8+**
-*   **FFmpeg:** (Sistemde kurulu olmalıdır)
-*   **Python Kütüphaneleri:**
-    *   `fastmcp[cli]`
-    *   `openai-whisper`
-    *   `torch` (Whisper için)
-    *   `yt-dlp`
-    *   `supabase`
+*   **FastMCP:** MCP protokolü uygulaması.
+*   **OpenAI Whisper:** Yerel yapay zeka tabanlı ses tanıma.
+*   **FFmpeg:** Güçlü ses ve video işleme aracı.
+*   **Ollama:** (Opsiyonel/Docker) Yerel LLM desteği için.
 
-## Kurulum
+## 🐳 Kurulum ve Çalıştırma (Docker ile Önerilen)
 
-Ana uygulamanın (`app.py`) çalıştığı dizinde değil, bu klasör özelinde veya ana dizinden bu gereksinimleri yükleyerek kullanabilirsiniz:
+En temiz kurulum yöntemi Docker kullanmaktır. Bu yöntem FFmpeg, Whisper modelleri ve Ollama servisini otomatik olarak ayağa kaldırır.
 
-```bash
-pip install -r requirements.txt
-```
+1.  **Docker Konteynerlerini Başlatın:**
+    Bu klasörün içindeyken (`mcp-media-server/`):
 
-*(Not: Eğer ana proje dizinindeyseniz `pip install -r mcp-media-server/requirements.txt` komutunu kullanın.)*
+    ```bash
+    docker-compose up --build
+    ```
 
-## Dosya Yapısı
+    Bu komut iki servis başlatır:
+    *   `app`: Medya sunucusu (Python/FastMCP).
+    *   `llm`: Ollama servisi (Yerel LLM işlemleri için).
 
-*   `src/server.py`: MCP sunucusunun giriş noktası. `process_youtube_workflow` gibi araçları dışarıya açar.
-*   `src/transcribe.py`: Whisper modellerini yükleyen ve transkripsiyon işlemini yapan çekirdek modül. Modeller ilk kullanımda önbelleğe alınır.
-*   `src/audio.py`: Ses dosyası işlemlerini (süre bulma, parçalama, format değiştirme) yönetir.
-*   `src/db.py`: İşlenen verilerin veritabanına kaydedilmesi için yardımcı fonksiyonlar.
+2.  **Kullanım:**
+    Sunucu çalışmaya başladığında, istemci uygulamalar (örneğin ana dizindeki `app.py`) bu sunucuya bağlanarak işlem yaptırabilir.
 
-## Kullanım
+## 🐍 Yerel Kurulum (Python ile)
 
-### Bağımsız MCP Sunucusu Olarak Çalıştırma
+Docker kullanmadan çalıştırmak isterseniz sisteminizde **FFmpeg** kurulu olmalıdır.
 
-Bu sunucuyu Docker veya doğrudan Python ile çalıştırarak, `app.py` gibi istemcilerin uzaktan bağlanmasını sağlayabilirsiniz.
+1.  **Gereksinimleri Yükleyin:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-**Docker ile:**
-```bash
-docker-compose up --build
-```
+2.  **FFmpeg Kurulumu:**
+    *   **Ubuntu/Debian:** `sudo apt install ffmpeg`
+    *   **macOS:** `brew install ffmpeg`
+    *   **Windows:** FFmpeg resmi sitesinden indirip PATH'e ekleyin.
 
-**Manuel:**
-```bash
-# src klasörü Python yoluna eklenmelidir
-export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-python src/server.py
-```
+3.  **Sunucuyu Başlatın:**
+    ```bash
+    # src klasörünü PYTHONPATH'e ekleyerek başlatın
+    export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+    python src/server.py
+    ```
 
-### Monolitik Kullanım (Eski Yöntem)
+## 📂 Dosya Yapısı
 
-Eğer `app.py` uygulamasının bu klasördeki modülleri doğrudan import etmesini istiyorsanız (Yerel İşleme), yukarıdaki kurulum adımını tamamlamanız yeterlidir. `app.py` otomatik olarak bu klasörü yoluna ekler ve modülleri kullanmaya başlar.
+*   `src/server.py`: MCP sunucusunun ana giriş noktası. Araçları tanımlar.
+*   `src/transcribe.py`: Whisper model yönetimi ve transkripsiyon mantığı.
+*   `src/audio.py`: FFmpeg ile ses işleme fonksiyonları.
+*   `docker-compose.yml`: Docker servis tanımları.
