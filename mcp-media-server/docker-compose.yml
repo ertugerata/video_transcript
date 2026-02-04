@@ -3,13 +3,15 @@ services:
     build: .
     volumes:
       - .:/app
+    ports:
+      - "7860:7860"
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - OLLAMA_URL=http://llm:11434
     depends_on:
       - llm
-    command: python src/server.py
+    command: fastmcp run src/server.py --transport sse --port 7860 --host 0.0.0.0
 
   llm:
     image: ollama/ollama:latest
