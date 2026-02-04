@@ -6,7 +6,7 @@ import uuid
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
-MCP_SERVER_URL = "https://ertugrulerata-mcp-media-server.hf.space/sse"
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "https://ertugrulerata-mcp-media-server.hf.space/sse")
 CHUNK_SIZE = 1 * 1024 * 1024  # 1MB chunks
 
 async def check_connection_async():
