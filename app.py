@@ -125,12 +125,14 @@ def get_transcript(video_id, language='tr'):
         print(f"Transkript verisi alındı: {len(transcript_data)} satır")
         
         full_transcript = []
+        simple_text_parts = []
         for item in transcript_data:
             timestamp = format_timestamp(item.start)
             text = item.text
             full_transcript.append(f"[{timestamp}] {text}")
+            simple_text_parts.append(text)
         
-        simple_text = ' '.join([item.text for item in transcript_data])
+        simple_text = ' '.join(simple_text_parts)
         
         return {
             'full_text': '\n'.join(full_transcript),
